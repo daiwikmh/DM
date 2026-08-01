@@ -21,6 +21,13 @@ const TABS = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <meta name="application-name" content="justdm" />
+    <meta property="og:site_name" content="justdm" />
+    <meta property="og:title" content={title} />
+    <meta property="og:image" content="/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <script is:inline>
       // Applied before paint so the sidebar doesn't flash expanded then collapse.
       if (localStorage.getItem('sidebar-collapsed') === '1') {

@@ -31,8 +31,12 @@ export const FOOTER_RIGHT = 'PRIVACY POLICY';
 // black-on-white instead of the intended white-on-video look.
 export const VIDEO_LEFT = '/video/runway.mp4';
 
-// Lorem Picsum — deterministic ids so the same 10 images render every load.
-const GALLERY_IDS = [1011, 1015, 1025, 1035, 1041, 1050, 1062, 1074, 1084, 1080];
-export const GALLERY_IMAGES = GALLERY_IDS.map(
-  (id) => `https://picsum.photos/id/${id}/900/1350`,
-);
+export const GALLERY_IMAGES = [
+  '/images/model1.jpeg',
+  '/images/model2.jpeg',
+  '/images/model3.jpeg',
+  '/images/model4.jpeg',
+  '/images/model5.jpeg',
+  '/images/model8.jpeg',
+  'https://picsum.photos/id/1025/900/1350',
+];
