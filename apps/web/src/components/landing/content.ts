@@ -23,12 +23,14 @@ export const CTA_HREF = '/dashboard';
 export const FOOTER_LEFT = `${BRAND_NAME} (R) 2026`;
 export const FOOTER_RIGHT = 'PRIVACY POLICY';
 
-// Google-hosted Blender JUSTDMation demo clips — stable, permissively served,
-// reliable placeholders for the two scrub-driven hero videos.
-export const VIDEO_LEFT =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';
-export const VIDEO_RIGHT =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+// MDN-hosted CC0 clips — verified 2026-08-01 as actually reachable with a real
+// video/mp4 response and an explicit CORS header. The previous googleapis.com
+// bucket URLs here now 403 (XML error body), which silently broke the whole
+// landing page: VideoBackground.tsx never fires `onLoadedData`, so the video
+// layer's opacity never leaves 0 and the exclusion-blend text reads as flat
+// black-on-white instead of the intended white-on-video look.
+export const VIDEO_LEFT = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+export const VIDEO_RIGHT = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4';
 
 // Lorem Picsum — deterministic ids so the same 10 images render every load.
 const GALLERY_IDS = [1011, 1015, 1025, 1035, 1041, 1050, 1062, 1074, 1084, 1080];

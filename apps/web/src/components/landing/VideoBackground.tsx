@@ -19,6 +19,11 @@ export function VideoBackground() {
 
   const onLoaded = () => setLoadedCount((c) => c + 1);
 
+  // A dead video URL (as happened 2026-08-01 — the prior placeholders started
+  // 403ing) must not leave the container permanently invisible; count it as
+  // settled so the overlay still reveals rather than hanging at opacity-0.
+  const onError = () => setLoadedCount((c) => c + 1);
+
   // Desktop: cursor-position scrubs whichever video is active. RAF-driven,
   // not a mousemove-triggered render — mousemove only records the x
   // coordinate, matching the spec's "only update when !video.seeking" guard.
@@ -109,7 +114,7 @@ export function VideoBackground() {
     <div
       id="main-canvas"
       ref={containerRef}
-      className="pointer-events-none fixed top-[220px] left-0 z-0 h-[calc(100vh-220px)] w-screen overflow-hidden opacity-0 transition-opacity duration-300 lg:inset-0 lg:h-full lg:w-full"
+      className="pointer-events-none fixed top-[220px] left-0 z-0 h-[calc(100vh-220px)] w-screen overflow-hidden bg-black opacity-0 transition-opacity duration-300 lg:inset-0 lg:h-full lg:w-full"
     >
       <video
         ref={leftRef}
@@ -118,6 +123,7 @@ export function VideoBackground() {
         playsInline
         preload="auto"
         onLoadedData={onLoaded}
+        onError={onError}
         className="absolute inset-0 h-full w-full object-cover"
         style={{ display: 'none' }}
       />
@@ -128,6 +134,7 @@ export function VideoBackground() {
         playsInline
         preload="auto"
         onLoadedData={onLoaded}
+        onError={onError}
         className="absolute inset-0 h-full w-full object-cover"
         style={{ display: 'block' }}
       />
