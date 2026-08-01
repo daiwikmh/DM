@@ -11,6 +11,8 @@
  */
 import { startIntakeServer } from './intake/server.ts';
 import { startResolverLoop } from './resolver/loop.ts';
+import { startCheckoutServer } from './checkout/server.ts';
 
 startIntakeServer(Number(process.env.INTAKE_PORT ?? 8787));
 startResolverLoop();
+startCheckoutServer(Number(process.env.CHECKOUT_PORT ?? 8788));

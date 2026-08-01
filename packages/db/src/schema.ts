@@ -26,6 +26,20 @@ export const resolution = pgEnum('resolution', ['exact', 'similar', 'none']);
 /** What the user can actually do with an item. */
 export const itemTier = pgEnum('item_tier', ['buyable', 'deeplink']);
 
+/**
+ * A checkout's life: a Prava session opens as 'authorizing', mints credentials
+ * on passkey approval, then the executor drives the merchant. 'declined' is a
+ * real terminal outcome — the chain ran and the gateway answered — as distinct
+ * from 'failed', where the driver never reached one.
+ */
+export const checkoutStatus = pgEnum('checkout_status', [
+  'authorizing',
+  'authorized',
+  'placed',
+  'declined',
+  'failed',
+]);
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   phone: text('phone').unique(),
@@ -103,4 +117,38 @@ export const items = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('items_share_rank').on(t.shareId, t.rank)],
+);
+
+/**
+ * One row per Prava session. Without this a session id is unverifiable — any
+ * signed-in user could poll or settle someone else's checkout, since Prava is
+ * the only party that knows who opened it.
+ */
+export const checkouts = pgTable(
+  'checkouts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => items.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').notNull(),
+    orderId: text('order_id'),
+    /** From the minted credentials; Report Status needs it to settle. */
+    txnRefId: text('txn_ref_id'),
+    status: checkoutStatus('status').notNull().default('authorizing'),
+    totalAmount: numeric('total_amount', { precision: 12, scale: 2 }),
+    currency: text('currency'),
+    /** Merchant verdict, or the driver's reason for never reaching one. */
+    outcome: text('outcome'),
+    merchantUrl: text('merchant_url'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('checkouts_session').on(t.sessionId),
+    index('checkouts_user_created').on(t.userId, t.createdAt),
+  ],
 );

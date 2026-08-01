@@ -21,7 +21,17 @@ export async function resolve(params: {
   caption?: string;
 }): Promise<ResolveResult> {
   const signal = await identify(params);
-  const candidates = await searchByText(signal.searchQuery);
+  let candidates = await searchByText(signal.searchQuery);
+
+  // A very specific query can match nothing at all. Retry once on the coarse
+  // description before giving up — a 'similar' match beats an empty card, and
+  // this only costs a call when the precise query already failed.
+  if (candidates.length === 0) {
+    const coarse = [signal.brand, signal.color, signal.productType].filter(Boolean).join(' ');
+    if (coarse && coarse !== signal.searchQuery) {
+      candidates = await searchByText(coarse);
+    }
+  }
 
   const resolution: ResolveResult['resolution'] =
     candidates.length === 0 ? 'none' : signal.confidence === 'high' && signal.brand ? 'exact' : 'similar';

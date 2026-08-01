@@ -91,12 +91,34 @@ if (!item.priceAmount || !item.currency) {
   {
     session && (
       <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <iframe
-          src={session.iframeUrl}
-          title="Prava payment authorization"
-          class="h-[38rem] w-full rounded-xl border border-stone-200 bg-white"
-          allow="publickey-credentials-get *; payment *"
-        />
+        {/*
+          Opened as a top-level tab, not embedded. The session is created with
+          integration_type 'full_checkout' — Prava's hosted page — and passkey
+          registration happens in a nested Visa iframe inside it. WebAuthn
+          across that chain needs every ancestor to delegate
+          publickey-credentials-create, and we don't control Prava's frame, so
+          embedding fails with "Visa iframe failed to initialize". Top-level has
+          no chain to break. Embedding properly means the @prava-sdk/core
+          collectPAN path with integration_type 'embedding'.
+        */}
+        <div class="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-white p-10 text-center">
+          <p class="text-lg font-medium">Authorize this payment</p>
+          <p class="mt-2 max-w-sm text-sm text-stone-500">
+            Prava opens in a new tab for card entry and passkey approval. Leave this page open —
+            it updates as soon as the card is minted.
+          </p>
+
+          <a
+            href={session.iframeUrl}
+            target="_blank"
+            rel="noopener"
+            class="mt-6 rounded-lg bg-stone-900 px-6 py-3 text-sm font-medium text-white hover:bg-stone-700"
+          >
+            Open Prava checkout
+          </a>
+
+          <p class="mt-4 text-xs text-stone-400">Session expires 15 minutes after it was created.</p>
+        </div>
 
         <aside class="rounded-xl border border-stone-200 bg-white p-4">
           <p class="text-sm font-medium">Authorize with your passkey</p>

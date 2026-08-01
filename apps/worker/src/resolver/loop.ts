@@ -28,7 +28,7 @@ async function claimNext(): Promise<Share | undefined> {
 
 async function processShare(share: Share): Promise<void> {
   try {
-    const media = await acquireMedia(share.rawPayload);
+    const media = await acquireMedia(share);
     const result = await resolve(media);
 
     if (result.candidates.length) {

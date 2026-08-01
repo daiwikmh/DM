@@ -27,13 +27,24 @@ export function __resetIdentifyClientForTests(): void {
   client = null;
 }
 
-/** Lazy, so importing this module doesn't throw before NVIDIA_API_KEY is set. */
+export function identifyModel(): string {
+  return process.env.IDENTIFY_MODEL ?? 'moonshotai/kimi-k2.6';
+}
+
+/**
+ * Provider follows the model id: NIM ids are namespaced ("vendor/model"),
+ * OpenAI's are bare ("gpt-4.1"). One env var picks both, so there is no way
+ * to point a model at the wrong endpoint.
+ */
 function getClient(): OpenAI {
   if (!client) {
-    const apiKey = process.env.NVIDIA_API_KEY;
-    if (!apiKey) throw new Error('NVIDIA_API_KEY is not set');
+    const onNim = identifyModel().includes('/');
+
+    const apiKey = onNim ? process.env.NVIDIA_API_KEY : process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error(`${onNim ? 'NVIDIA_API_KEY' : 'OPENAI_API_KEY'} is not set`);
+
     client = new OpenAI({
-      baseURL: 'https://integrate.api.nvidia.com/v1',
+      ...(onNim ? { baseURL: 'https://integrate.api.nvidia.com/v1' } : {}),
       apiKey,
       // The SDK captures `fetch` once at construction (this.fetch = overriddenFetch ?? fetch)
       // rather than reading globalThis.fetch per call. This thin wrapper defers that lookup to
@@ -60,7 +71,9 @@ If several products are visible, pick the one the caption and framing emphasize.
 "confidence" is "low" whenever the frame is ambiguous, occluded, or generic enough that a
 merchant search is unlikely to find the exact item — don't inflate it to seem useful.
 "search_query" should be a plain-text product search a shopping engine would understand,
-e.g. "Nike Air Max 90 white leather sneakers", not a description of the scene.
+e.g. "Nike Air Max 90 white leather sneakers", not a description of the scene. Name the
+fabric or material whenever you can tell it (denim, linen, leather, knit) — it narrows a
+shopping search far more than colour does.
 
 Respond with ONLY a JSON object matching this exact shape, no other text:
 {
@@ -86,7 +99,7 @@ export async function identify(params: {
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
   caption?: string;
 }): Promise<ProductSignal> {
-  const model = process.env.IDENTIFY_MODEL ?? 'moonshotai/kimi-k2.6';
+  const model = identifyModel();
 
   const completion = await getClient().chat.completions.create({
     model,
