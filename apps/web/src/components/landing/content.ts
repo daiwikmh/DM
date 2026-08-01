@@ -5,7 +5,7 @@
  */
 
 // No product name has been chosen yet for this app — placeholder wordmark.
-export const BRAND_NAME = 'FOUND';
+export const BRAND_NAME = 'JUSTDM';
 
 export const CAPTION =
   'You send us what catches your eye. We tell you where to buy it and what it costs.';
@@ -23,7 +23,7 @@ export const CTA_HREF = '/dashboard';
 export const FOOTER_LEFT = `${BRAND_NAME} (R) 2026`;
 export const FOOTER_RIGHT = 'PRIVACY POLICY';
 
-// Google-hosted Blender Foundation demo clips — stable, permissively served,
+// Google-hosted Blender JUSTDMation demo clips — stable, permissively served,
 // reliable placeholders for the two scrub-driven hero videos.
 export const VIDEO_LEFT =
   'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';

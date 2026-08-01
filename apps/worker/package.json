@@ -3,6 +3,9 @@
   "type": "module",
   "version": "0.0.1",
   "private": true,
+  "exports": {
+    "./resolver/catalog": "./src/resolver/catalog.ts"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts",
     "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",

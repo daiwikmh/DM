@@ -1,0 +1,127 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  active: 'finds' | 'explore' | 'checkouts';
+}
+
+const { title, active } = Astro.props;
+
+const TABS = [
+  { key: 'finds', label: 'Finds', href: '/dashboard', abbr: 'F' },
+  { key: 'explore', label: 'Explore', href: '/explore', abbr: 'E' },
+  { key: 'checkouts', label: 'Checkouts', href: '/checkouts', abbr: 'C' },
+] as const;
+---
+
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <script is:inline>
+      // Applied before paint so the sidebar doesn't flash expanded then collapse.
+      if (localStorage.getItem('sidebar-collapsed') === '1') {
+        document.documentElement.classList.add('sidebar-collapsed');
+      }
+    </script>
+  </head>
+  <body class="h-full bg-stone-50 text-stone-900 antialiased">
+    <div class="flex h-full">
+      <aside
+        class="hidden w-56 shrink-0 flex-col border-r border-stone-200 bg-white transition-[width] duration-150 sm:flex [.sidebar-collapsed_&]:w-16"
+      >
+        <div class="flex items-center justify-between px-4 py-4">
+          <span class="text-sm font-semibold tracking-tight [.sidebar-collapsed_&]:hidden">FOUND</span>
+          <button
+            id="sidebar-toggle"
+            type="button"
+            aria-label="Toggle sidebar"
+            class="rounded p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-900"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              class="transition-transform duration-150 [.sidebar-collapsed_&]:rotate-180"
+            >
+              <path
+                d="M10 3L5 8l5 5"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <nav class="flex flex-1 flex-col gap-1 px-2">
+          {
+            TABS.map((tab) => (
+              <a
+                href={tab.href}
+                class:list={[
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                  active === tab.key ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900',
+                ]}
+              >
+                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">
+                  {tab.abbr}
+                </span>
+                <span class="[.sidebar-collapsed_&]:hidden">{tab.label}</span>
+              </a>
+            ))
+          }
+        </nav>
+
+        <div class="px-2 pb-4">
+          <a
+            href="/logout"
+            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+          >
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">
+              &times;
+            </span>
+            <span class="[.sidebar-collapsed_&]:hidden">Sign out</span>
+          </a>
+        </div>
+      </aside>
+
+      <div class="flex min-h-full flex-1 flex-col overflow-y-auto">
+        <header class="flex items-center justify-between border-b border-stone-200 bg-white px-4 py-3 sm:hidden">
+          <span class="text-sm font-semibold tracking-tight">FOUND</span>
+          <nav class="flex gap-1">
+            {
+              TABS.map((tab) => (
+                <a
+                  href={tab.href}
+                  class:list={[
+                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
+                    active === tab.key ? 'bg-stone-900 text-white' : 'text-stone-600',
+                  ]}
+                >
+                  {tab.label}
+                </a>
+              ))
+            }
+          </nav>
+        </header>
+
+        <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <script is:inline>
+      document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+        const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+      });
+    </script>
+  </body>
+</html>
