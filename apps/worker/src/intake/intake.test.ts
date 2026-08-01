@@ -143,7 +143,7 @@ describe('instagram', () => {
               sender: { id: 'IGSID_123' },
               message: {
                 mid: 'mid_3',
-                attachments: [{ type: 'image', payload: { url: 'https://cdn/x.jpg' } }],
+                attachments: [{ type: 'audio', payload: { url: 'https://cdn/x.m4a' } }],
               },
             },
           ],
@@ -152,6 +152,29 @@ describe('instagram', () => {
     });
 
     assert.deepEqual(shares, []);
+  });
+
+  test('reads a photo attachment', () => {
+    const shares = parseInstagram({
+      entry: [
+        {
+          messaging: [
+            {
+              sender: { id: 'IGSID_123' },
+              message: {
+                mid: 'mid_4',
+                text: 'where can I get this',
+                attachments: [{ type: 'image', payload: { url: 'https://cdn/x.jpg' } }],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(shares.length, 1);
+    assert.equal(shares[0].sourceUrl, 'https://cdn/x.jpg');
+    assert.equal(shares[0].messageId, 'mid_4');
   });
 
   test('does not double-count a link that is both attached and pasted', () => {

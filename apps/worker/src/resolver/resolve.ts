@@ -1,5 +1,6 @@
 import { identify, type ProductSignal } from './identify.ts';
-import { searchByText, type CatalogCandidate } from './catalog.ts';
+import type { CatalogCandidate } from './catalog.ts';
+import { searchByText } from './serpapi.ts';
 
 export interface ResolveResult {
   signal: ProductSignal;
@@ -9,10 +10,10 @@ export interface ResolveResult {
 }
 
 /**
- * identify() → Catalog MCP text search. Deliberately text-only for now —
- * searchByImage()'s payload shape isn't verified against a live call yet
- * (see catalog.ts), and the search_query identify() produces is already
- * built to stand on its own as a shopping-engine query.
+ * identify() → Google Shopping text search. Deliberately text-only: the
+ * search_query identify() produces is already built to stand on its own as a
+ * shopping-engine query. Catalog MCP (catalog.ts) is the intended backend but
+ * needs client credentials we don't have; serpapi.ts returns the same shape.
  */
 export async function resolve(params: {
   imageBase64: string;

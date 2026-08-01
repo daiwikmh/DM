@@ -1,22 +1,60 @@
 import type { APIRoute } from 'astro';
-import { db, users } from '@prava/db';
-import { eq } from 'drizzle-orm';
+import { db, users, identities, shares } from '@prava/db';
+import { and, eq } from 'drizzle-orm';
 import { setSession } from '../lib/session.ts';
+import { resolveIgsid } from '../lib/instagram.ts';
 
 /**
- * Development-only sign-in. Real auth (email OTP) is not wired yet — this
- * exists so the dashboard is reachable while Phases 1–3 are built. It refuses
- * to run outside dev.
+ * Sign in and claim your Instagram shares in one step.
+ *
+ * This identifies a user, it does not authenticate one — there is no password
+ * or OTP, so anyone can type any email and handle. Real auth is still owed.
+ *
+ * Intake creates a user per IGSID with no contact details (see store.ts), so
+ * shares pile up against a placeholder account. Claiming re-points that
+ * identity, and everything it collected, at the signed-in account.
  */
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
-  if (!import.meta.env.DEV) return new Response('Not found', { status: 404 });
-
   const form = await request.formData();
   const email = String(form.get('email') ?? '').trim();
+  const handle = String(form.get('instagram') ?? '').trim();
+
   if (!email) return new Response('email required', { status: 400 });
+  if (!handle) return new Response('instagram handle required', { status: 400 });
+
+  let igsid: string | null;
+  try {
+    igsid = await resolveIgsid(handle);
+  } catch (err) {
+    return new Response(err instanceof Error ? err.message : String(err), { status: 502 });
+  }
+
+  if (!igsid) {
+    return new Response(
+      `No Instagram account matching "${handle}" has messaged us yet. Send a photo first, then sign in.`,
+      { status: 404 },
+    );
+  }
 
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
   const user = existing[0] ?? (await db.insert(users).values({ email }).returning())[0];
+
+  const [identity] = await db
+    .select()
+    .from(identities)
+    .where(and(eq(identities.platform, 'instagram'), eq(identities.externalId, igsid)))
+    .limit(1);
+
+  if (!identity) {
+    await db
+      .insert(identities)
+      .values({ userId: user.id, platform: 'instagram', externalId: igsid })
+      .onConflictDoNothing();
+  } else if (identity.userId !== user.id) {
+    // The placeholder account holds every share this IGSID has sent.
+    await db.update(shares).set({ userId: user.id }).where(eq(shares.userId, identity.userId));
+    await db.update(identities).set({ userId: user.id }).where(eq(identities.id, identity.id));
+  }
 
   setSession(cookies, user.id);
   return redirect('/dashboard');

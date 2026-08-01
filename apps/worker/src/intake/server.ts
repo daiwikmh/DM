@@ -55,18 +55,21 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return send(res, 200, 'ok');
   }
 
-  // Meta expects a fast acknowledgement and retries anything slow, so the ack
-  // goes out before persistence rather than after it.
-  send(res, 200, 'ok');
+  if (parsed.length === 0) return send(res, 200, 'ok');
 
-  if (parsed.length === 0) return;
-
+  // Persist before acknowledging. It costs a couple of inserts inside Meta's
+  // timeout, but a DB failure then surfaces as a retryable 500 instead of a
+  // share that is lost while Meta believes it was delivered. Retrying is safe:
+  // the shares_dedupe index makes recordShares idempotent.
   try {
     const queued = await recordShares(parsed);
     console.log(`intake: ${url.pathname} → ${queued}/${parsed.length} queued`);
   } catch (err) {
     console.error('intake: failed to record shares', err);
+    return send(res, 500, 'error');
   }
+
+  send(res, 200, 'ok');
 }
 
 function asHeader(value: string | string[] | undefined): string | undefined {

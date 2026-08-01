@@ -1,0 +1,177 @@
+---
+import DashboardShell from '../../layouts/DashboardShell.astro';
+import { db, items, shares, users } from '@prava/db';
+import { createSession } from '@prava/worker/payments/prava';
+import { eq } from 'drizzle-orm';
+
+const { userId } = Astro.locals;
+if (!userId) return Astro.redirect('/');
+
+const { itemId } = Astro.params;
+
+const [row] = await db
+  .select({ item: items, share: shares })
+  .from(items)
+  .innerJoin(shares, eq(items.shareId, shares.id))
+  .where(eq(items.id, itemId!))
+  .limit(1);
+
+if (!row || row.share.userId !== userId) return new Response('Not found', { status: 404 });
+
+const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+const { item } = row;
+
+// Prava prices a session in a real currency; a candidate without one cannot be
+// charged, and an account without an email cannot receive the passkey prompt.
+let error: string | null = null;
+let session: Awaited<ReturnType<typeof createSession>> | null = null;
+
+if (!item.priceAmount || !item.currency) {
+  error = 'This match has no price, so it cannot be checked out.';
+} else if (!user?.email) {
+  error = 'Your account has no email address, which Prava requires to open a session.';
+} else {
+  try {
+    session = await createSession({
+      userId,
+      userEmail: user.email,
+      totalAmount: item.priceAmount,
+      currency: item.currency,
+      merchant: {
+        name: item.merchant ?? 'Unknown merchant',
+        url: item.productUrl,
+        countryCodeIso2: 'IN',
+      },
+      products: [
+        {
+          description: item.title,
+          unitPrice: item.priceAmount,
+          quantity: 1,
+          productId: item.catalogProductId ?? undefined,
+        },
+      ],
+    });
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+}
+---
+
+<DashboardShell title="Checkout" active="checkouts">
+  <header class="mb-6">
+    <h1 class="text-2xl font-semibold tracking-tight">Checkout</h1>
+    <p class="mt-1 text-sm text-stone-500">
+      {item.title}{item.merchant && ` · ${item.merchant}`}
+    </p>
+  </header>
+
+  {
+    error && (
+      <div class="rounded-xl border border-red-200 bg-red-50 p-6">
+        <p class="font-medium text-red-900">Could not start checkout</p>
+        <p class="mt-1 text-sm text-red-700">{error}</p>
+      </div>
+    )
+  }
+
+  {
+    session && (
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <iframe
+          src={session.iframeUrl}
+          title="Prava payment authorization"
+          class="h-[38rem] w-full rounded-xl border border-stone-200 bg-white"
+          allow="publickey-credentials-get *; payment *"
+        />
+
+        <aside class="rounded-xl border border-stone-200 bg-white p-4">
+          <p class="text-sm font-medium">Authorize with your passkey</p>
+          <p class="mt-1 text-xs text-stone-500">
+            Prava mints one-time card credentials once you approve. Nothing is charged here.
+          </p>
+
+          <dl class="mt-4 space-y-1 text-xs text-stone-500">
+            <div class="flex justify-between">
+              <dt>Order</dt>
+              <dd class="font-mono">{session.orderId}</dd>
+            </div>
+            <div class="flex justify-between">
+              <dt>Amount</dt>
+              <dd>{item.priceAmount} {item.currency}</dd>
+            </div>
+          </dl>
+
+          <p
+            id="status"
+            data-session={session.sessionId}
+            class="mt-4 rounded-lg bg-stone-100 px-3 py-2 text-sm"
+          >
+            Waiting for authorization…
+          </p>
+
+          {/*
+            Prava mints credentials; it never places the order. With no
+            merchant-execution layer, the card is handed to the user to
+            complete the purchase at the merchant themselves.
+          */}
+          <div id="card" hidden class="mt-4 rounded-lg border border-stone-200 p-3">
+            <p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
+              One-time card
+            </p>
+            <dl class="mt-2 space-y-1 font-mono text-sm">
+              <div class="flex justify-between"><dt class="text-stone-500">Number</dt><dd id="card-token" /></div>
+              <div class="flex justify-between"><dt class="text-stone-500">CVV</dt><dd id="card-cvv" /></div>
+              <div class="flex justify-between"><dt class="text-stone-500">Expiry</dt><dd id="card-exp" /></div>
+            </dl>
+            <a
+              href={item.productUrl}
+              target="_blank"
+              rel="noopener nofollow"
+              class="mt-3 block rounded-lg bg-stone-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-stone-700"
+            >
+              Complete at {item.merchant ?? 'merchant'}
+            </a>
+          </div>
+        </aside>
+      </div>
+    )
+  }
+</DashboardShell>
+
+<script>
+  const status = document.getElementById('status');
+  const sessionId = status?.dataset.session;
+
+  if (status && sessionId) {
+    const poll = async () => {
+      const res = await fetch(`/api/payment-result/${sessionId}`);
+      const body = await res.json();
+
+      if (body.status === 'completed') {
+        status.textContent = 'Authorized — payment credentials minted.';
+        status.className = 'mt-4 rounded-lg bg-green-100 px-3 py-2 text-sm text-green-900';
+
+        const card = document.getElementById('card');
+        if (card && body.credentials) {
+          document.getElementById('card-token')!.textContent = body.credentials.token;
+          document.getElementById('card-cvv')!.textContent = body.credentials.dynamicCvv;
+          document.getElementById('card-exp')!.textContent =
+            `${body.credentials.expiryMonth}/${body.credentials.expiryYear}`;
+          card.hidden = false;
+        }
+        return;
+      }
+
+      if (body.status === 'failed') {
+        status.textContent = body.error?.message ?? 'Authorization failed.';
+        status.className = 'mt-4 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-900';
+        return;
+      }
+
+      setTimeout(poll, 2000);
+    };
+
+    void poll();
+  }
+</script>

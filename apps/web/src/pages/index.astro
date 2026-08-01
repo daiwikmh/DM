@@ -3,8 +3,6 @@ import '../styles/global.css';
 import { LandingExperience } from '../components/landing/LandingExperience.tsx';
 
 if (Astro.locals.userId) return Astro.redirect('/dashboard');
-
-const isDev = import.meta.env.DEV;
 ---
 
 <!doctype html>
@@ -24,26 +22,32 @@ const isDev = import.meta.env.DEV;
     <LandingExperience client:only="react" />
 
     {
-      /* Dev-only auth stub — separate from the spec'd CTA so the real "start"
-         button can point at the real destination without this getting in the way. */
-      isDev && (
-        <form
-          method="POST"
-          action="/dev-login"
-          class="fixed bottom-4 left-4 z-[60] flex gap-2 rounded-lg bg-stone-900 p-2"
-        >
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="you@example.com"
-            class="rounded bg-white px-2 py-1 text-xs text-stone-900"
-          />
-          <button type="submit" class="rounded bg-white px-2 py-1 text-xs font-medium text-stone-900">
-            Dev sign in
-          </button>
-        </form>
-      )
+      /* Sign-in stub — separate from the spec'd CTA so the real "start" button
+         can point at the real destination without this getting in the way.
+         The handle is what binds a signed-in account to its Instagram shares. */
     }
+    <form
+      method="POST"
+      action="/dev-login"
+      class="fixed bottom-4 left-4 z-[60] flex gap-2 rounded-lg bg-stone-900 p-2"
+    >
+      <input
+        type="email"
+        name="email"
+        required
+        placeholder="you@example.com"
+        class="rounded bg-white px-2 py-1 text-xs text-stone-900"
+      />
+      <input
+        type="text"
+        name="instagram"
+        required
+        placeholder="your.instagram"
+        class="rounded bg-white px-2 py-1 text-xs text-stone-900"
+      />
+      <button type="submit" class="rounded bg-white px-2 py-1 text-xs font-medium text-stone-900">
+        Sign in
+      </button>
+    </form>
   </body>
 </html>

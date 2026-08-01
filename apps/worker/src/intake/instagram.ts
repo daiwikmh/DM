@@ -22,7 +22,7 @@ interface IgPayload {
 }
 
 /** Attachment types that carry a shareable media URL. */
-const SHAREABLE = new Set(['ig_reel', 'reel', 'share']);
+const SHAREABLE = new Set(['ig_reel', 'reel', 'share', 'image']);
 
 export function parseInstagram(body: unknown): NormalizedShare[] {
   const payload = body as IgPayload;

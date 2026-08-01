@@ -10,5 +10,7 @@
  * before any in-module loader could populate it.
  */
 import { startIntakeServer } from './intake/server.ts';
+import { startResolverLoop } from './resolver/loop.ts';
 
 startIntakeServer(Number(process.env.INTAKE_PORT ?? 8787));
+startResolverLoop();

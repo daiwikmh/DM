@@ -29,8 +29,7 @@ export const FOOTER_RIGHT = 'PRIVACY POLICY';
 // landing page: VideoBackground.tsx never fires `onLoadedData`, so the video
 // layer's opacity never leaves 0 and the exclusion-blend text reads as flat
 // black-on-white instead of the intended white-on-video look.
-export const VIDEO_LEFT = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
-export const VIDEO_RIGHT = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4';
+export const VIDEO_LEFT = '/video/runway.mp4';
 
 // Lorem Picsum — deterministic ids so the same 10 images render every load.
 const GALLERY_IDS = [1011, 1015, 1025, 1035, 1041, 1050, 1062, 1074, 1084, 1080];
