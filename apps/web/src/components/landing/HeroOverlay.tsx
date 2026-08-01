@@ -100,13 +100,13 @@ export const HeroOverlay = forwardRef<HeroOverlayHandle>((_props, ref) => {
         <span className="hidden text-[15px] font-medium tracking-tight text-white uppercase sm:inline">
           {NAV_LABEL}
         </span>
-        <div className="flex items-center gap-5 sm:gap-[50px]">
+        <a href={CTA_HREF} className="pointer-events-auto flex items-center gap-5 sm:gap-[50px]">
           <svg width="24" height="24" viewBox="0 0 40 40" className="sm:h-[30px] sm:w-[30px]">
             <path d="M0 14H40" stroke="white" strokeWidth="2.5" />
             <path d="M0 26H40" stroke="white" strokeWidth="2.5" />
           </svg>
           <span className="text-[13px] font-medium text-white sm:text-[15px]">{NAV_ACTION_LABEL}</span>
-        </div>
+        </a>
       </motion.div>
 
       {/* Caption */}
