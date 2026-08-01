@@ -1,0 +1,253 @@
+/**
+ * Thin client for the Prava calls this flow needs, against the real
+ * documented shapes (docs.prava.space/api-reference, verified 2026-07-30
+ * against a live sandbox session — the first draft of this file guessed at
+ * /v1/payment-result as a flat query-param endpoint, which is wrong; see the
+ * corrections below):
+ *
+ *   POST /v1/sessions                          — open a transaction, get an iframe_url
+ *   GET  /v1/sessions/:id/payment-result        — poll until the one-time card is minted
+ *   POST /v1/sessions/:id/revoke                — abandon a session early
+ *   POST /v1/sessions/:id/report-status         — settle the outcome back to Prava
+ *
+ * This module only talks to Prava. It knows nothing about Rye or the
+ * merchant checkout — that's deliberately a separate module, matching the
+ * real division of labor: Prava mints credentials, it never places orders.
+ */
+
+export interface MerchantDetails {
+  name: string;
+  url: string;
+  countryCodeIso2: string;
+}
+
+export interface ProductDetail {
+  description: string;
+  unitPrice: string;
+  quantity?: number;
+  productId?: string;
+}
+
+export interface CreateSessionInput {
+  userId: string;
+  userEmail: string;
+  totalAmount: string;
+  currency: string;
+  merchant: MerchantDetails;
+  products: ProductDetail[];
+  /** Reuse an enrolled card instead of collecting a fresh one. */
+  cardId?: string;
+}
+
+export interface CreateSessionResult {
+  sessionId: string;
+  sessionToken: string;
+  iframeUrl: string;
+  orderId: string;
+  expiresAt: string;
+}
+
+/**
+ * `txnRefId` is not optional bookkeeping — Report Status requires it to
+ * identify which line item the outcome applies to. It comes from the same
+ * line item as the credentials, so it travels with them.
+ */
+export interface MintedCredentials {
+  txnRefId: string;
+  token: string;
+  dynamicCvv: string;
+  expiryMonth: string;
+  expiryYear: string;
+}
+
+export type PaymentResultStatus = 'pending' | 'awaiting_result' | 'completed' | 'failed';
+
+export interface PaymentResult {
+  status: PaymentResultStatus;
+  credentials?: MintedCredentials;
+  error?: { code: string; message: string };
+}
+
+export class PravaError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = 'PravaError';
+  }
+}
+
+function config() {
+  const secretKey = process.env.PRAVA_SECRET_KEY;
+  const baseUrl = process.env.PRAVA_API_BASE_URL ?? 'https://sandbox.api.prava.space';
+  if (!secretKey) {
+    throw new Error(
+      'PRAVA_SECRET_KEY is not set. Create a sandbox key at dashboard.prava.space — it works instantly, no waiting.',
+    );
+  }
+  return { secretKey, baseUrl };
+}
+
+async function pravaFetch<T>(path: string, init: RequestInit): Promise<T> {
+  const { secretKey, baseUrl } = config();
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${secretKey}`,
+      'content-type': 'application/json',
+      ...init.headers,
+    },
+  });
+
+  const body = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const error = (body as { error?: { message?: string; code?: string } } | null)?.error;
+    throw new PravaError(error?.message ?? `HTTP ${res.status}`, res.status, error?.code);
+  }
+
+  return body as T;
+}
+
+export async function createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
+  const body = await pravaFetch<{
+    session_id: string;
+    session_token: string;
+    iframe_url: string;
+    order_id: string;
+    expires_at: string;
+  }>('/v1/sessions', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: input.userId,
+      user_email: input.userEmail,
+      total_amount: input.totalAmount,
+      currency: input.currency,
+      purchase_context: [
+        {
+          merchant_details: {
+            name: input.merchant.name,
+            url: input.merchant.url,
+            country_code_iso2: input.merchant.countryCodeIso2,
+          },
+          product_details: input.products.map((p) => ({
+            description: p.description,
+            unit_price: p.unitPrice,
+            quantity: p.quantity ?? 1,
+            ...(p.productId ? { product_id: p.productId } : {}),
+          })),
+        },
+      ],
+      integration_type: 'full_checkout',
+      ...(input.cardId ? { card: { card_id: input.cardId } } : {}),
+    }),
+  });
+
+  return {
+    sessionId: body.session_id,
+    sessionToken: body.session_token,
+    iframeUrl: body.iframe_url,
+    orderId: body.order_id,
+    expiresAt: body.expires_at,
+  };
+}
+
+interface RawLineItem {
+  txn_ref_id: string;
+  status: string;
+  token: string | null;
+  dynamic_cvv: string | null;
+  expiry_month: string | null;
+  expiry_year: string | null;
+}
+
+interface RawPaymentResult {
+  session_id: string;
+  order_id: string | null;
+  status: PaymentResultStatus;
+  transactions: Array<{
+    txn_id: string;
+    status: string;
+    line_items: RawLineItem[];
+    error?: { code: string; message: string };
+  }>;
+}
+
+export async function getPaymentResult(sessionId: string): Promise<PaymentResult> {
+  const body = await pravaFetch<RawPaymentResult>(
+    `/v1/sessions/${encodeURIComponent(sessionId)}/payment-result`,
+    { method: 'GET' },
+  );
+
+  const transaction = body.transactions[0];
+  const item = transaction?.line_items[0];
+
+  const credentials =
+    item?.token && item?.dynamic_cvv
+      ? {
+          txnRefId: item.txn_ref_id,
+          token: item.token,
+          dynamicCvv: item.dynamic_cvv,
+          expiryMonth: item.expiry_month ?? '',
+          expiryYear: item.expiry_year ?? '',
+        }
+      : undefined;
+
+  return { status: body.status, credentials, error: transaction?.error };
+}
+
+/**
+ * Poll until the card is minted or the session's 15-minute window runs out.
+ * `onTick` lets a CLI print progress without this module knowing about stdout.
+ */
+export async function waitForCredentials(
+  sessionId: string,
+  opts: { intervalMs?: number; timeoutMs?: number; onTick?: (status: PaymentResultStatus) => void } = {},
+): Promise<MintedCredentials> {
+  const intervalMs = opts.intervalMs ?? 3000;
+  const timeoutMs = opts.timeoutMs ?? 15 * 60 * 1000;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await getPaymentResult(sessionId);
+    opts.onTick?.(result.status);
+
+    if (result.status === 'awaiting_result' && result.credentials) return result.credentials;
+    if (result.status === 'failed') {
+      throw new Error(
+        result.error ? `Payment failed: ${result.error.code} — ${result.error.message}` : 'Payment session failed before credentials were minted',
+      );
+    }
+
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+
+  throw new Error(`Timed out waiting for card entry on session ${sessionId}`);
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  await pravaFetch(`/v1/sessions/${encodeURIComponent(sessionId)}/revoke`, { method: 'POST' });
+}
+
+export interface ReportStatusInput {
+  sessionId: string;
+  txnRefId: string;
+  status: 'APPROVED' | 'DECLINED';
+  authorizationCode?: string;
+  responseCode?: string;
+}
+
+export async function reportStatus(input: ReportStatusInput): Promise<void> {
+  await pravaFetch(`/v1/sessions/${encodeURIComponent(input.sessionId)}/report-status`, {
+    method: 'POST',
+    body: JSON.stringify({
+      txn_ref_id: input.txnRefId,
+      txn_status: input.status,
+      ...(input.authorizationCode ? { authorization_code: input.authorizationCode } : {}),
+      ...(input.responseCode ? { response_code: input.responseCode } : {}),
+    }),
+  });
+}

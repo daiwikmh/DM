@@ -1,0 +1,123 @@
+---
+import type { InferSelectModel } from 'drizzle-orm';
+import type { shares, items } from '@prava/db/schema';
+
+type Share = InferSelectModel<typeof shares>;
+type Item = InferSelectModel<typeof items>;
+
+interface Props {
+  share: Share;
+  items: Item[];
+}
+
+const { share, items: shareItems } = Astro.props;
+
+const best = shareItems[0];
+const alternates = shareItems.slice(1);
+
+const price = (item: Item) =>
+  item.priceAmount && item.currency
+    ? new Intl.NumberFormat('en', { style: 'currency', currency: item.currency }).format(
+        Number(item.priceAmount),
+      )
+    : null;
+
+// The primary action is always an outbound link. Agentic checkout measured ~3x
+// worse conversion than a click-through, so `buyable` changes the label and
+// nothing else until that tradeoff is re-tested.
+const cta = (item: Item) =>
+  item.tier === 'buyable'
+    ? `Buy at ${item.merchant ?? 'merchant'}`
+    : `View at ${item.merchant ?? 'merchant'}`;
+---
+
+<article class="overflow-hidden rounded-xl border border-stone-200 bg-white">
+  {
+    share.status !== 'resolved' && (
+      <div class="p-4">
+        <p class="text-sm text-stone-500">
+          {share.status === 'failed' ? 'Could not read this one' : 'Working on it…'}
+        </p>
+        <a
+          href={share.sourceUrl}
+          class="mt-1 block truncate text-xs text-stone-400 hover:underline"
+        >
+          {share.sourceUrl}
+        </a>
+        {share.error && <p class="mt-2 text-xs text-red-600">{share.error}</p>}
+      </div>
+    )
+  }
+
+  {
+    share.status === 'resolved' && !best && (
+      <div class="p-4">
+        <p class="text-sm text-stone-500">No match found</p>
+        <a
+          href={share.sourceUrl}
+          class="mt-1 block truncate text-xs text-stone-400 hover:underline"
+        >
+          {share.sourceUrl}
+        </a>
+      </div>
+    )
+  }
+
+  {
+    best && (
+      <>
+        {best.imageUrl && (
+          <img
+            src={best.imageUrl}
+            alt={best.title}
+            loading="lazy"
+            class="aspect-square w-full bg-stone-100 object-cover"
+          />
+        )}
+        <div class="p-4">
+          {share.resolution === 'similar' && (
+            <p class="mb-1 text-xs font-medium tracking-wide text-amber-700 uppercase">
+              Similar to your reel
+            </p>
+          )}
+          <h3 class="leading-snug font-medium">{best.title}</h3>
+          <p class="mt-1 text-sm text-stone-500">
+            {best.merchant}
+            {price(best) && <span class="text-stone-900"> · {price(best)}</span>}
+          </p>
+
+          <a
+            href={best.productUrl}
+            target="_blank"
+            rel="noopener nofollow"
+            class="mt-3 block rounded-lg bg-stone-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-stone-700"
+          >
+            {cta(best)}
+          </a>
+
+          {alternates.length > 0 && (
+            <details class="mt-3">
+              <summary class="cursor-pointer text-xs text-stone-500 hover:text-stone-900">
+                {alternates.length} other match{alternates.length === 1 ? '' : 'es'}
+              </summary>
+              <ul class="mt-2 space-y-1">
+                {alternates.map((item) => (
+                  <li>
+                    <a
+                      href={item.productUrl}
+                      target="_blank"
+                      rel="noopener nofollow"
+                      class="text-xs text-stone-600 hover:underline"
+                    >
+                      {item.title} — {item.merchant}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      </>
+    )
+  }
+</article>

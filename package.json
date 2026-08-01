@@ -1,0 +1,14 @@
+{
+  "name": "prava",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @prava/web dev",
+    "worker": "pnpm --filter @prava/worker dev",
+    "db:generate": "pnpm --filter @prava/db generate",
+    "db:migrate": "pnpm --filter @prava/db migrate",
+    "resolve": "pnpm --filter @prava/worker resolve",
+    "eval": "pnpm --filter @prava/worker eval",
+    "prava:spike": "pnpm --filter @prava/worker prava:spike"
+  }
+}

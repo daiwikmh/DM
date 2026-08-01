@@ -1,0 +1,24 @@
+{
+  "name": "@prava/worker",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts",
+    "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "resolve": "node --env-file-if-exists=../../.env --import tsx src/cli/resolve.ts",
+    "eval": "node --env-file-if-exists=../../.env --import tsx src/cli/eval.ts",
+    "prava:spike": "node --env-file-if-exists=../../.env --import tsx src/cli/prava-spike.ts"
+  },
+  "dependencies": {
+    "@prava/db": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,50 @@
+---
+import { db, shares, items } from '@prava/db';
+import { eq, desc, inArray, asc } from 'drizzle-orm';
+import ShareCard from './ShareCard.astro';
+
+interface Props {
+  userId: string;
+}
+
+const { userId } = Astro.props;
+
+const userShares = await db
+  .select()
+  .from(shares)
+  .where(eq(shares.userId, userId))
+  .orderBy(desc(shares.createdAt))
+  .limit(60);
+
+const shareItems = userShares.length
+  ? await db
+      .select()
+      .from(items)
+      .where(
+        inArray(
+          items.shareId,
+          userShares.map((s) => s.id),
+        ),
+      )
+      .orderBy(asc(items.rank))
+  : [];
+
+const byShare = Map.groupBy(shareItems, (item) => item.shareId);
+---
+
+{
+  userShares.length === 0 ? (
+    <div class="rounded-xl border border-dashed border-stone-300 p-10 text-center">
+      <p class="font-medium">Nothing here yet</p>
+      <p class="mt-1 text-sm text-stone-500">
+        Send a reel to your Instagram or WhatsApp and it will show up here.
+      </p>
+    </div>
+  ) : (
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {userShares.map((share) => (
+        <ShareCard share={share} items={byShare.get(share.id) ?? []} />
+      ))}
+    </div>
+  )
+}
