@@ -22,17 +22,11 @@ const price = (item: Item) =>
       )
     : null;
 
-// One-click Prava checkout leads when the item is priced — it is the thing this
-// build exists to show. The outbound link stays as the secondary action for
-// everything else; the earlier finding that a click-through converts ~3x better
-// than agentic checkout has not been re-tested against this flow.
 const buyable = (item: Item) => Boolean(item.priceAmount && item.currency);
 ---
 
 <article class="border border-white/10 bg-white/[0.03]">
   {
-    /* What the user sent, beside what it matched — the match is unjudgeable
-       without the source frame. Equal squares so neither reads as primary. */
     share.thumbnail && (
       <div class={`grid gap-px bg-white/10 ${best?.imageUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <figure class="relative m-0">
@@ -97,8 +91,6 @@ const buyable = (item: Item) => Boolean(item.priceAmount && item.currency);
   {
     best && (
       <>
-        {/* The match image is rendered in the comparison strip above, when a
-            source frame exists; this covers shares that have no thumbnail. */}
         {best.imageUrl && !share.thumbnail && (
           <img
             src={best.imageUrl}

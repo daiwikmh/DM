@@ -3,17 +3,8 @@ import { AnimatePresence, motion } from 'motion/react';
 
 const EASE = [0.25, 0.1, 0.25, 1] as const;
 
-/** Same restless glyph set the landing hero cycles — carried over so the two
- *  surfaces read as one product rather than two designs. */
 const SYMBOLS = ['8', '$', '^^', '%', '/'];
 
-/**
- * The five beats of a complete payment, in the order Prava performs them.
- *
- * Nothing is reported to Prava until the card has actually been used: the docs
- * are explicit that report-status carries the merchant's verdict, so settling
- * at mint would tell the card network money moved before anything was charged.
- */
 const steps = (merchant: string) =>
   [
     { active: 'Opening a Prava session', done: 'Session opened' },
@@ -59,15 +50,11 @@ export interface CheckoutFlowProps {
 
 type Phase =
   | 'idle'
-  /** Session open, waiting on the passkey and the mint. */
   | 'running'
-  /** Minted, but there is no saved address to ship to. */
   | 'address'
-  /** The agent is driving the merchant's checkout. */
   | 'buying'
   | 'placed'
   | 'declined'
-  /** The agent never reached a gateway verdict, so only the user can say. */
   | 'manual'
   | 'failed';
 
@@ -102,8 +89,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
     setPhase('failed');
   }, []);
 
-  /** Hand the minted card to the executor, which drives the merchant and
-   *  settles with Prava from whatever the gateway actually answered. */
   const placeOrder = useCallback(
     async (address: Shipping) => {
       setPhase('buying');
@@ -121,9 +106,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
         result = { status: 'failed', message: err instanceof Error ? err.message : String(err) };
       }
 
-      // 'placed' and 'declined' are gateway verdicts — place-order has already
-      // reported them to Prava. 'failed' means the chain never got that far,
-      // so the session is still unreported and only the user can close it.
       if (result.status === 'placed') {
         setStage(5);
         setNote(result.url ?? null);
@@ -141,8 +123,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
     [email, itemId, sessionId],
   );
 
-  /** Fallback settlement: the user finishes at the merchant themselves and
-   *  tells us how it went, because Prava still needs an outcome either way. */
   const reportManually = useCallback(
     async (status: 'APPROVED' | 'DECLINED') => {
       setStage(4);
@@ -172,8 +152,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
     if (startedRef.current) return;
     startedRef.current = true;
 
-    // Must happen synchronously inside the click, or the browser treats it as
-    // an unsolicited popup. One gesture is the whole point of this screen.
     const tab = window.open(checkoutUrl, '_blank', 'noopener');
     if (!tab) setPopupBlocked(true);
 
@@ -185,15 +163,11 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
     const minted = (credentials: Credentials) => {
       setCard(credentials);
       setStage(3);
-      // A saved address is what keeps this a single click; without one there
-      // is nowhere to ship, and no amount of automation can invent it.
       if (shipping) return void placeOrder(shipping);
       setPhase('address');
     };
 
     const poll = async () => {
-      // A session cannot be authorized past its 15-minute window, so stop
-      // rather than spinning on "waiting for your passkey" indefinitely.
       if (Date.now() > deadline) {
         return fail('This session expired before it was authorized. Start a new checkout.');
       }
@@ -201,8 +175,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
       let body;
       try {
         const res = await fetch(`/api/payment-result/${sessionId}`);
-        // A non-JSON error body (404, 401) would otherwise throw and kill the
-        // loop silently, leaving the page waiting forever.
         if (!res.ok) throw new Error(`payment-result returned ${res.status}`);
         body = await res.json();
       } catch (err) {
@@ -210,19 +182,13 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
         return void window.setTimeout(poll, 3000);
       }
 
-      // Credentials land at 'awaiting_result'; 'completed' only happens after
-      // the outcome is reported, so waiting for it would hang here forever.
       if (body.credentials) {
         setStage(2);
-        // The mint and the approval arrive in the same response. Holding the
-        // beat lets the timeline read as the sequence it actually is.
         window.setTimeout(() => minted(body.credentials), 700);
         return;
       }
 
       if (body.status === 'failed') {
-        // Surface the code as well as the message: FIDO_START_FAILED is a
-        // Prava-side authorization fault, not something to retry in place.
         const code = body.error?.code;
         return fail([code, body.error?.message ?? 'Authorization failed.'].filter(Boolean).join(': '));
       }
@@ -246,9 +212,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
 
       <Chrome merchant={merchantName} />
 
-      {/* Without a product image there is nothing to anchor a second column
-          with, so the flow runs as one centred column instead of leaving a
-          tall empty rectangle beside it. */}
       <div
         className={`relative z-10 mx-auto grid w-full flex-1 items-center gap-8 pt-14 sm:pt-20 ${
           imageUrl ? 'max-w-6xl lg:grid-cols-2 lg:gap-16' : 'max-w-xl'
@@ -413,8 +376,6 @@ function Artwork({
       transition={{ duration: 0.7, ease: EASE }}
       className="relative mx-auto w-full max-w-[320px] lg:max-w-none"
     >
-      {/* Capped on small screens so the price and the button stay above the
-          fold — this page is opened from a phone, from a reel. */}
       <div className="h-[34dvh] w-full overflow-hidden bg-white/5 lg:aspect-[2/3] lg:h-auto">
         <img src={imageUrl} alt={title} className="h-full w-full object-cover" />
       </div>
@@ -438,8 +399,6 @@ function Artwork({
 }
 
 function Guardrails({ merchant, priceLabel }: { merchant: string; priceLabel: string }) {
-  // The guardrails are the reason this exists rather than storing the user's
-  // own card: the credential has to be worthless if it leaks.
   const lines = [
     <>
       Works <strong className="font-medium text-white">once</strong>, then it's dead
@@ -495,8 +454,6 @@ function Timeline({ stage, merchant, phase }: { stage: number; merchant: string;
   const list = steps(merchant);
   const stalled = phase === 'manual' || phase === 'failed' || phase === 'address';
 
-  // A decline is a completed step, not a failed one — the chain ran and the
-  // gateway answered — so it reads as done, just not as a purchase.
   const label = (i: number, key: 'active' | 'done') =>
     i === 3 && key === 'done' && phase === 'declined' ? `Declined at ${merchant}` : list[i][key];
 
@@ -571,8 +528,6 @@ function StepMark({ done, active, blocked }: { done: boolean; active: boolean; b
 const FIELD =
   'w-full rounded-full border border-white/20 bg-transparent px-4 py-2.5 text-[13px] tracking-[-0.02em] text-white placeholder:text-white/30 focus:border-white focus:outline-none';
 
-/** Shown once, the first time an account buys. place-order saves it, so every
- *  later checkout is genuinely one click. */
 function AddressForm({
   email,
   onSubmit,
@@ -656,11 +611,6 @@ function Outcome({
   );
 }
 
-/**
- * The agent never reached a gateway verdict, so the card is handed over and the
- * user finishes at the merchant. Prava still needs an answer either way —
- * an unreported session sits in 'awaiting_result' forever.
- */
 function ManualSettle({
   card,
   note,

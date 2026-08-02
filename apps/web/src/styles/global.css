@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-/* The landing page sets Inter Tight inline on its root; the dashboard is many
-   pages, so it gets a theme token instead of repeating the stack per file. */
 @theme {
   --font-display: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
 }

@@ -23,8 +23,6 @@ const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1
 
 const { item } = row;
 
-// Prava prices a session in a real currency; a candidate without one cannot be
-// charged, and an account without an email cannot receive the passkey prompt.
 let error: string | null = null;
 let session: Awaited<ReturnType<typeof createSession>> | null = null;
 
@@ -34,9 +32,6 @@ if (!item.priceAmount || !item.currency) {
   error = 'Your account has no email address, which Prava requires to open a session.';
 } else {
   try {
-    // Must run before every session: a half-enrolled card poisons this
-    // customer id permanently, and no amount of refreshing or restarting
-    // clears it. See purgeEnrolledCards.
     const purged = await purgeEnrolledCards(userId);
     if (purged) console.log(`prava: purged ${purged} stored card(s) for ${userId}`);
 
@@ -50,7 +45,6 @@ if (!item.priceAmount || !item.currency) {
         url: item.productUrl,
         countryCodeIso2: 'IN',
       },
-      // Tell the worker which front end to return the cardholder to.
       callbackUrl: (() => {
         const base = import.meta.env.PRAVA_CALLBACK_URL ?? process.env.PRAVA_CALLBACK_URL;
         return base ? `${base}?to=${encodeURIComponent(Astro.url.origin)}` : undefined;
@@ -65,9 +59,6 @@ if (!item.priceAmount || !item.currency) {
       ],
     });
 
-    // Recorded before the user touches the hosted page: without a local row, a
-    // session id is unverifiable and any signed-in user could poll or settle
-    // someone else's checkout.
     await db.insert(checkouts).values({
       userId,
       itemId: item.id,
@@ -110,19 +101,7 @@ const priceLabel =
     />
   </head>
   <body class="font-display min-h-dvh bg-black text-white antialiased">
-    {
-      /*
-        The Prava session is opened as a top-level tab from inside the click,
-        not embedded. The session is created with integration_type
-        'full_checkout' — Prava's hosted page — and passkey registration happens
-        in a nested Visa iframe inside it. WebAuthn across that chain needs
-        every ancestor to delegate publickey-credentials-create, and we don't
-        control Prava's frame, so embedding fails with "Visa iframe failed to
-        initialize". Top-level has no chain to break.
-      */
-    }
-    {
-      session && (
+    {session && (
         <CheckoutFlow
           client:load
           sessionId={session.sessionId}
