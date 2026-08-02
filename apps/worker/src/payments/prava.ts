@@ -37,6 +37,8 @@ export interface CreateSessionInput {
   products: ProductDetail[];
   /** Reuse an enrolled card instead of collecting a fresh one. */
   cardId?: string;
+  /** Where Prava returns the cardholder after they approve. Must be https. */
+  callbackUrl?: string;
 }
 
 export interface CreateSessionResult {
@@ -112,6 +114,71 @@ async function pravaFetch<T>(path: string, init: RequestInit): Promise<T> {
   return body as T;
 }
 
+export interface EnrolledCard {
+  cardId: string;
+  last4: string;
+  isDefault: boolean;
+}
+
+export async function listCards(customerId: string): Promise<EnrolledCard[]> {
+  const body = await pravaFetch<{
+    cards?: Array<{ card_id: string; card_last4: string; is_default: boolean }>;
+  }>(`/v1/listCards?customer_id=${encodeURIComponent(customerId)}`, { method: 'GET' });
+
+  return (body.cards ?? []).map((c) => ({
+    cardId: c.card_id,
+    last4: c.card_last4,
+    isDefault: c.is_default,
+  }));
+}
+
+export async function deleteCard(customerId: string, cardId: string): Promise<void> {
+  await pravaFetch('/v1/deleteCard', {
+    method: 'POST',
+    body: JSON.stringify({
+      customer_id: customerId,
+      card_id: cardId,
+      reason: 'CUSTOMER_CONFIRMED',
+    }),
+  });
+}
+
+/**
+ * Drop every enrolled card for a customer before opening a session.
+ *
+ * Works around a sandbox fault: a card can end up stored and flagged
+ * "verified when stored" without a passkey ever being bound to it. Every later
+ * session then takes the savedCard path, skips card entry, and dies at
+ * /v1/fido/start with FIDO_START_FAILED — permanently, for that customer id,
+ * across refreshes and restarts. Starting each session with no stored card
+ * forces the addCard path, which does the device binding properly.
+ *
+ * Never throws: a checkout that can't purge is still worth attempting.
+ */
+export async function purgeEnrolledCards(customerId: string): Promise<number> {
+  try {
+    const cards = await listCards(customerId);
+    let removed = 0;
+
+    for (const card of cards) {
+      try {
+        await deleteCard(customerId, card.cardId);
+        removed += 1;
+      } catch (err) {
+        console.error(`prava: could not delete card ${card.cardId}`, err);
+      }
+    }
+
+    return removed;
+  } catch (err) {
+    // A customer Prava has never seen 404s here, which is the healthy case.
+    if (!(err instanceof PravaError && err.status === 404)) {
+      console.error('prava: could not list cards for purge', err);
+    }
+    return 0;
+  }
+}
+
 export async function createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
   const body = await pravaFetch<{
     session_id: string;
@@ -142,6 +209,7 @@ export async function createSession(input: CreateSessionInput): Promise<CreateSe
         },
       ],
       integration_type: 'full_checkout',
+      ...(input.callbackUrl ? { callback_url: input.callbackUrl } : {}),
       ...(input.cardId ? { card: { card_id: input.cardId } } : {}),
     }),
   });

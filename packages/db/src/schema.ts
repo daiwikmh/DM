@@ -40,10 +40,25 @@ export const checkoutStatus = pgEnum('checkout_status', [
   'failed',
 ]);
 
+/** Where a user's orders ship. Kept whole rather than split into columns because
+ *  it is only ever read and written as one unit, straight into a checkout form. */
+export interface ShippingAddress {
+  firstName: string;
+  lastName: string;
+  address1: string;
+  city: string;
+  postalCode: string;
+  province?: string;
+  countryCode: string;
+  phone?: string;
+}
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   phone: text('phone').unique(),
   email: text('email'),
+  /** Saved on first checkout so nobody types their address twice. */
+  shipping: jsonb('shipping').$type<ShippingAddress>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -78,6 +93,12 @@ export const shares = pgTable(
     messageId: text('message_id'),
     /** Raw webhook payload, kept so the resolver can be re-run without re-fetching. */
     rawPayload: jsonb('raw_payload'),
+    /**
+     * The frame we identified from, as a data URI. Stored as bytes rather than
+     * a URL because Instagram's CDN links are signed and expire within hours —
+     * a stored link would leave every older card with a broken image.
+     */
+    thumbnail: text('thumbnail'),
     status: shareStatus('status').notNull().default('queued'),
     resolution: resolution('resolution'),
     error: text('error'),
@@ -90,6 +111,23 @@ export const shares = pgTable(
     uniqueIndex('shares_dedupe').on(t.platform, t.messageId, t.sourceUrl),
   ],
 );
+
+/**
+ * A user's OAuth connection to Prava's MCP, one per account.
+ *
+ * This is what makes the pipeline multi-tenant: purchases run against the
+ * connected user's own Prava wallet, cards and addresses, not the app's.
+ */
+export const pravaConnections = pgTable('prava_connections', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  scope: text('scope'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const items = pgTable(
   'items',

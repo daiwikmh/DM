@@ -33,6 +33,39 @@ const cta = (item: Item) =>
 
 <article class="overflow-hidden rounded-xl border border-stone-200 bg-white">
   {
+    /* What the user sent, beside what it matched — the match is unjudgeable
+       without the source frame. Equal squares so neither reads as primary. */
+    share.thumbnail && (
+      <div class={`grid gap-px bg-stone-200 ${best?.imageUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <figure class="relative m-0">
+          <img
+            src={share.thumbnail}
+            alt="The reel frame you sent"
+            loading="lazy"
+            class="aspect-square w-full bg-stone-100 object-cover"
+          />
+          <figcaption class="absolute top-2 left-2 rounded bg-stone-900/75 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-white uppercase">
+            You sent
+          </figcaption>
+        </figure>
+
+        {best?.imageUrl && (
+          <figure class="relative m-0">
+            <img
+              src={best.imageUrl}
+              alt={best.title}
+              loading="lazy"
+              class="aspect-square w-full bg-stone-100 object-cover"
+            />
+            <figcaption class="absolute top-2 left-2 rounded bg-stone-900/75 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-white uppercase">
+              Match
+            </figcaption>
+          </figure>
+        )}
+      </div>
+    )
+  }
+  {
     share.status !== 'resolved' && (
       <div class="p-4">
         <p class="text-sm text-stone-500">
@@ -66,7 +99,9 @@ const cta = (item: Item) =>
   {
     best && (
       <>
-        {best.imageUrl && (
+        {/* The match image is rendered in the comparison strip above, when a
+            source frame exists; this covers shares that have no thumbnail. */}
+        {best.imageUrl && !share.thumbnail && (
           <img
             src={best.imageUrl}
             alt={best.title}

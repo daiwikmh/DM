@@ -21,8 +21,12 @@ interface IgPayload {
   entry?: Array<{ messaging?: IgMessaging[] }>;
 }
 
-/** Attachment types that carry a shareable media URL. */
-const SHAREABLE = new Set(['ig_reel', 'reel', 'share', 'image']);
+/**
+ * Attachment types that carry a shareable media URL. `ig_post` is a shared
+ * feed post — the most common thing people actually send — and unlike a reel
+ * its payload carries a directly fetchable CDN image.
+ */
+const SHAREABLE = new Set(['ig_reel', 'reel', 'ig_post', 'share', 'image']);
 
 export function parseInstagram(body: unknown): NormalizedShare[] {
   const payload = body as IgPayload;

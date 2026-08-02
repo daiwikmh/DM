@@ -269,3 +269,36 @@ describe('whatsapp', () => {
     assert.deepEqual(shares, []);
   });
 });
+
+describe('instagram shared posts', () => {
+  test('reads a shared feed post attachment', () => {
+    const shares = parseInstagram({
+      entry: [
+        {
+          messaging: [
+            {
+              sender: { id: 'IGSID_9' },
+              message: {
+                mid: 'mid_post',
+                attachments: [
+                  {
+                    type: 'ig_post',
+                    payload: {
+                      ig_post_media_id: '18222878329325287',
+                      title: 'Comment link for Links #jeans',
+                      url: 'https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1&signature=x',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(shares.length, 1);
+    assert.equal(shares[0].platform, 'instagram');
+    assert.equal(shares[0].messageId, 'mid_post');
+  });
+});

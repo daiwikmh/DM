@@ -11,10 +11,6 @@ if (!userId) return Astro.redirect('/');
     <h1 class="text-2xl font-semibold tracking-tight">Your finds</h1>
   </header>
 
-  {/*
-    Server island: the shell above is cacheable chrome, the grid is a
-    per-request fragment. Keeps personalised data out of any page cache.
-  */}
   <ItemGrid server:defer userId={userId}>
     <div slot="fallback" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, items, checkouts } from '@prava/db';
+import { db, items, checkouts, users, type ShippingAddress } from '@prava/db';
 import { and, eq } from 'drizzle-orm';
 import { getPaymentResult, reportStatus } from '@prava/worker/payments/prava';
 
@@ -43,13 +43,26 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   const [item] = await db.select().from(items).where(eq(items.id, checkout.itemId)).limit(1);
   if (!item) return new Response('Not found', { status: 404 });
 
+  // Remembered for next time: nobody should retype their address per purchase.
+  await db
+    .update(users)
+    .set({ shipping: body.shipping as unknown as ShippingAddress })
+    .where(eq(users.id, locals.userId))
+    .catch((err) => console.error('could not save shipping address', err));
+
+  console.log(`order: ${sessionId} — fetching minted card from Prava`);
   const payment = await getPaymentResult(sessionId);
   if (!payment.credentials) {
+    console.log(`order: ${sessionId} — not minted yet (${payment.status})`);
     return Response.json(
       { status: 'failed', message: `card not minted yet (${payment.status})` },
       { status: 409 },
     );
   }
+
+  console.log(
+    `order: ${sessionId} — card **** ${payment.credentials.token.slice(-4)}, handing to executor for ${item.productUrl}`,
+  );
 
   const executorRes = await fetch(EXECUTOR, {
     method: 'POST',
@@ -74,6 +87,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   }
 
   const result = (await executorRes.json()) as ExecutorResult;
+  console.log(`order: ${sessionId} — merchant said ${result.status}: ${result.message}`);
 
   await db
     .update(checkouts)
@@ -88,7 +102,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       sessionId,
       txnRefId: payment.credentials.txnRefId,
       status: result.status === 'placed' ? 'APPROVED' : 'DECLINED',
-    }).catch((err) => console.error('report-status failed', err));
+    })
+      .then(() => console.log(`order: ${sessionId} — settled with Prava as ${result.status === 'placed' ? 'APPROVED' : 'DECLINED'}`))
+      .catch((err) => console.error('report-status failed', err));
   }
 
   return Response.json(result);

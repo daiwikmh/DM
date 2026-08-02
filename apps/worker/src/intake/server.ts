@@ -29,6 +29,16 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const parse = ROUTES[url.pathname];
 
   if (url.pathname === '/health') return send(res, 200, 'ok');
+
+  // Prava's callback_url must be https, and the app runs on http://localhost in
+  // development. This tunnel is already https, so it bounces the cardholder
+  // back to the app. The destination is fixed, never taken from the query, so
+  // it can't be turned into an open redirect.
+  if (url.pathname === '/prava/return') {
+    const site = process.env.PUBLIC_SITE_URL ?? 'http://localhost:4321';
+    res.writeHead(302, { location: `${site}/checkouts` });
+    return res.end();
+  }
   if (!parse) return send(res, 404, 'not found');
 
   if (req.method === 'GET') {

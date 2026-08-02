@@ -2,8 +2,14 @@ import type { CatalogCandidate } from './catalog.ts';
 
 const SERPAPI_URL = 'https://serpapi.com/search.json';
 
-/** Google Shopping is region-scoped; results and prices are meaningless without it. */
-const REGION = 'in';
+/**
+ * Google Shopping is region-scoped; results and prices are meaningless without
+ * it. Set to US because that is where checkout actually works: Indian
+ * storefronts overwhelmingly sell through PayU/Razorpay, which collect the card
+ * on their own hosted page, so the driver can never complete them. US DTC
+ * stores run Shopify Payments and take the card in-page.
+ */
+const REGION = 'us';
 
 const CURRENCY_BY_SYMBOL: Record<string, string> = {
   '₹': 'INR',

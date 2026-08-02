@@ -15,6 +15,27 @@
       "when": 1785597800621,
       "tag": "0001_skinny_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785656330420,
+      "tag": "0002_light_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785668005370,
+      "tag": "0003_gray_starfox",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785675003108,
+      "tag": "0004_serious_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

@@ -67,9 +67,17 @@ export async function acquireMedia(share: {
   const event = share.rawPayload as RawEvent | null;
   const attachments = event?.message?.attachments ?? [];
 
-  const image = attachments.find((a) => a.type === 'image');
-  if (image?.payload?.url) {
-    return { ...(await download(image.payload.url)), caption: event?.message?.text };
+  // Photos and shared feed posts both carry a directly fetchable CDN image.
+  const direct = attachments.find(
+    (a) => (a.type === 'image' || a.type === 'ig_post') && a.payload?.url,
+  );
+  if (direct?.payload?.url) {
+    return {
+      ...(await download(direct.payload.url)),
+      // A shared post carries the original caption; a photo carries whatever
+      // the sender typed alongside it.
+      caption: direct.payload.title ?? event?.message?.text,
+    };
   }
 
   if (/^https?:\/\/(www\.)?instagram\.com\/(reel|reels|p)\//i.test(share.sourceUrl)) {

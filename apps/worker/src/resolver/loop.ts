@@ -29,6 +29,14 @@ async function claimNext(): Promise<Share | undefined> {
 async function processShare(share: Share): Promise<void> {
   try {
     const media = await acquireMedia(share);
+
+    // Persisted before resolving: even a share that fails to match should show
+    // the user what they sent.
+    await db
+      .update(shares)
+      .set({ thumbnail: `data:${media.mediaType};base64,${media.imageBase64}` })
+      .where(eq(shares.id, share.id));
+
     const result = await resolve(media);
 
     if (result.candidates.length) {

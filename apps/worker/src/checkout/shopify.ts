@@ -1,3 +1,6 @@
+/// <reference lib="dom" />
+// The page.evaluate callbacks below run in the browser, not in Node, so this
+// file needs DOM types without pulling them into the rest of the worker.
 import { chromium, type Frame, type Page } from 'playwright';
 
 export interface ShippingDetails {
@@ -49,6 +52,10 @@ export async function executeCheckout(params: {
 }): Promise<CheckoutResult> {
   const { productUrl, card, shipping, headless = true, dryRun = false } = params;
 
+  const started = Date.now();
+  const step = (name: string, detail = '') =>
+    console.log(`checkout: [${String(Math.round((Date.now() - started) / 1000)).padStart(3)}s] ${name}${detail ? ' — ' + detail : ''}`);
+
   const browser = await chromium.launch({ headless });
   const context = await browser.newContext({ locale: 'en-IN' });
   const page = await context.newPage();
@@ -61,6 +68,7 @@ export async function executeCheckout(params: {
   });
 
   try {
+    step('opening product', productUrl);
     await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
 
     const origin = new URL(page.url()).origin;
@@ -68,12 +76,18 @@ export async function executeCheckout(params: {
       return await fail('not a Shopify storefront — only Shopify checkout is automated');
     }
 
-    if (!(await addToCart(page))) {
+    const added = await addToCart(page);
+    if (added === 'sold-out') {
+      return await fail('the merchant has this product out of stock — nothing to check out');
+    }
+    if (added !== 'added') {
       return await fail('could not find an add-to-cart control on the product page');
     }
 
+    step('in cart');
     await page.goto(`${origin}/checkout`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
 
+    step('filling contact + shipping', `${shipping.city}, ${shipping.countryCode}`);
     await fillContactAndShipping(page, shipping);
     await advance(page, /continue to shipping|continue to delivery/i);
     await advance(page, /continue to payment/i);
@@ -92,6 +106,8 @@ export async function executeCheckout(params: {
       );
     }
 
+    step('card fields filled', `**** ${card.token.slice(-4)}`);
+
     if (dryRun) {
       return {
         status: 'failed',
@@ -101,11 +117,35 @@ export async function executeCheckout(params: {
       };
     }
 
+    await dismissShopPayPrompt(page);
+
+    step('submitting payment');
     await advance(page, /pay now|complete order|pay ₹|pay \$/i);
 
-    return await readOutcome(page);
+    // A captcha is the merchant asking for a human. When the browser is
+    // visible there is one — so hand it over rather than defeating it, then
+    // resubmit. Headless runs have nobody to ask, so they fail honestly.
+    if (!headless && (await awaitHumanCaptcha(page, step))) {
+      step('resubmitting after captcha');
+      await advance(page, /pay now|complete order|pay ₹|pay \$/i);
+    }
+
+    const outcome = await readOutcome(page);
+    step(`result: ${outcome.status}`, outcome.message);
+    return outcome;
   } catch (err) {
-    return await fail(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+
+    // Some merchants drop the connection outright rather than serve a captcha.
+    // That is a block, not a network fault on our side, and saying so saves
+    // someone debugging their own wifi.
+    if (/ERR_CONNECTION_CLOSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/.test(message)) {
+      return await fail(
+        'the merchant closed the connection — it blocks automated checkout at the network level',
+      );
+    }
+
+    return await fail(message);
   } finally {
     await browser.close();
   }
@@ -119,7 +159,60 @@ async function isShopify(page: Page): Promise<boolean> {
   );
 }
 
-async function addToCart(page: Page): Promise<boolean> {
+/**
+ * Every Shopify product page also serves JSON at `<product-url>.js`, and
+ * `/cart/<variantId>:1` is a permalink that fills the cart without touching
+ * the page. That sidesteps themes whose add-to-cart is custom, lazy-rendered,
+ * or absent entirely (resale and pre-order templates have none).
+ */
+type CartResult = 'added' | 'sold-out' | 'no-control';
+
+async function addViaCartPermalink(page: Page): Promise<CartResult> {
+  try {
+    // Derived from the page's own URL, not the one we were handed: stores
+    // redirect product URLs to a canonical host or handle, and a cross-origin
+    // redirect breaks the fetch. After navigation the page already holds the
+    // resolved URL.
+    const canonical = page.url().split('?')[0].replace(/\/$/, '');
+
+    // Fetched from inside the page, not from Node: storefronts rate-limit and
+    // bot-block bare server-side requests, and the browser context already
+    // carries the cookies and headers the store expects.
+    const product = await page.evaluate(async (url: string) => {
+      const res = await fetch(url, { credentials: 'include' });
+      return res.ok ? ((await res.json()) as unknown) : null;
+    }, `${canonical}.js`);
+
+    const variants =
+      (product as { variants?: Array<{ id?: number; available?: boolean }> } | null)?.variants ??
+      null;
+    if (!variants) return 'no-control';
+
+    // Sold out is a merchant fact, not a driver failure — worth saying plainly
+    // rather than reporting a missing button.
+    const variant = variants.find((v) => v.available && v.id);
+    if (!variant?.id) return 'sold-out';
+
+    const origin = new URL(page.url()).origin;
+    await page.goto(`${origin}/cart/${variant.id}:1`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 45_000,
+    });
+    await page.waitForTimeout(2000);
+    return 'added';
+  } catch {
+    return 'no-control';
+  }
+}
+
+async function addToCart(page: Page): Promise<CartResult> {
+  // Permalink first. Clicking add-to-cart looks like the obvious path but is
+  // the fragile one: most themes disable the button until a size is chosen, so
+  // it is visible yet unclickable. The permalink needs no variant selection
+  // and no theme-specific DOM at all.
+  const viaPermalink = await addViaCartPermalink(page);
+  if (viaPermalink !== 'no-control') return viaPermalink;
+
   const candidates = [
     page.locator('form[action*="/cart/add"] button[type="submit"]').first(),
     page.locator('button[name="add"]').first(),
@@ -127,14 +220,21 @@ async function addToCart(page: Page): Promise<boolean> {
   ];
 
   for (const button of candidates) {
-    if (await button.isVisible().catch(() => false)) {
-      await button.click({ timeout: 10_000 });
+    if (!(await button.isVisible().catch(() => false))) continue;
+
+    // A disabled or overlaid control times out rather than throwing usefully.
+    const clicked = await button
+      .click({ timeout: 8_000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (clicked) {
       await page.waitForTimeout(2500);
-      return true;
+      return 'added';
     }
   }
 
-  return false;
+  return 'no-control';
 }
 
 /** Shopify renders each step differently across versions; try every label it uses. */
@@ -179,13 +279,91 @@ async function fillContactAndShipping(page: Page, s: ShippingDetails): Promise<v
   }
 }
 
+const CAPTCHA_PROMPT = /solve the captcha|complete the captcha|i am human|hcaptcha|recaptcha/i;
+
+/** How long to leave the window open for someone to click through a captcha. */
+const CAPTCHA_WAIT_MS = 3 * 60_000;
+
+/**
+ * Pause for a person to clear a captcha in the visible browser window.
+ *
+ * The merchant is asking for proof a human is driving, and during a checkout
+ * the buyer is right there — so this waits rather than trying to satisfy the
+ * challenge programmatically. Returns true only if the challenge actually
+ * cleared, so the caller knows whether resubmitting is worth it.
+ */
+async function awaitHumanCaptcha(page: Page, step: (n: string, d?: string) => void): Promise<boolean> {
+  const present = async () =>
+    CAPTCHA_PROMPT.test((await page.textContent('body').catch(() => '')) ?? '');
+
+  if (!(await present())) return false;
+
+  step('captcha — solve it in the browser window', `waiting up to ${CAPTCHA_WAIT_MS / 60_000} min`);
+  const deadline = Date.now() + CAPTCHA_WAIT_MS;
+
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(3000);
+    if (!(await present())) {
+      step('captcha cleared by human');
+      return true;
+    }
+  }
+
+  step('captcha not solved in time');
+  return false;
+}
+
+/**
+ * Close Shopify's "Confirm it's you" prompt.
+ *
+ * If the buyer's email belongs to a Shop Pay account, Shopify overlays a modal
+ * demanding an SMS code before it will let the order through — and it covers
+ * Pay now, so the click resolves and then times out. Guest checkout itself
+ * needs no account, so dismissing the prompt is enough; the SMS code is not
+ * something an agent can or should complete on the buyer's behalf.
+ */
+async function dismissShopPayPrompt(page: Page): Promise<void> {
+  const body = (await page.textContent('body').catch(() => '')) ?? '';
+  const shopFrame = page.frames().some((f) => /shop\.app|shopify\.com\/pay/i.test(f.url()));
+
+  if (!/confirm it's you|confirm it’s you/i.test(body) && !shopFrame) return;
+
+  await page.keyboard.press('Escape').catch(() => undefined);
+  await page.waitForTimeout(1000);
+
+  for (const scope of [page, ...page.frames()]) {
+    const close = scope
+      .locator('[aria-label="Close"], button[aria-label*="lose"], button:has-text("Continue as guest")')
+      .first();
+
+    if (await close.isVisible().catch(() => false)) {
+      await close.click({ timeout: 5_000 }).catch(() => undefined);
+      await page.waitForTimeout(1500);
+      break;
+    }
+  }
+}
+
 async function advance(page: Page, label: RegExp): Promise<void> {
   const button = page.getByRole('button', { name: label }).first();
-  if (await button.isVisible().catch(() => false)) {
-    await button.click({ timeout: 15_000 });
-    await page.waitForLoadState('networkidle', { timeout: 45_000 }).catch(() => undefined);
-    await page.waitForTimeout(2500);
+  if (!(await button.isVisible().catch(() => false))) return;
+
+  // Sticky footers and consent banners overlay the real button, so a plain
+  // click resolves the element and then times out waiting for it to become
+  // hittable. Scroll it into view first, then fall back to a forced click.
+  await button.scrollIntoViewIfNeeded().catch(() => undefined);
+
+  const clicked = await button
+    .click({ timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!clicked) {
+    await button.click({ timeout: 10_000, force: true }).catch(() => undefined);
   }
+
+  await page.waitForLoadState('networkidle', { timeout: 45_000 }).catch(() => undefined);
+  await page.waitForTimeout(2500);
 }
 
 /**
@@ -262,6 +440,19 @@ async function readOutcome(page: Page): Promise<CheckoutResult> {
   const declined = matchDecline(body);
   if (declined) {
     return { status: 'declined', message: declined, url };
+  }
+
+  // Shopify's bot protection is adaptive: a store that completed cleanly can
+  // start demanding a captcha after repeated automated checkouts from one IP.
+  // Worth naming, because it is a merchant defence rather than a driver bug,
+  // and nothing on our side fixes it.
+  if (CAPTCHA_PROMPT.test(body)) {
+    return {
+      status: 'failed',
+      message:
+        "blocked by the merchant's bot protection (captcha) — the card was filled but the order was not submitted. Run headful (CHECKOUT_HEADLESS=false) to solve it in the window",
+      url,
+    };
   }
 
   return {

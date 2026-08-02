@@ -5,7 +5,10 @@
   "private": true,
   "exports": {
     "./resolver/catalog": "./src/resolver/catalog.ts",
-    "./payments/prava": "./src/payments/prava.ts"
+    "./payments/prava": "./src/payments/prava.ts",
+    "./prava-mcp/oauth": "./src/prava-mcp/oauth.ts",
+    "./prava-mcp/client": "./src/prava-mcp/client.ts",
+    "./prava-mcp/shop": "./src/prava-mcp/shop.ts"
   },
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts",

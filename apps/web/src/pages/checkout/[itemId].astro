@@ -1,7 +1,7 @@
 ---
 import DashboardShell from '../../layouts/DashboardShell.astro';
 import { db, items, shares, users, checkouts } from '@prava/db';
-import { createSession } from '@prava/worker/payments/prava';
+import { createSession, purgeEnrolledCards } from '@prava/worker/payments/prava';
 import { eq } from 'drizzle-orm';
 
 const { userId } = Astro.locals;
@@ -22,6 +22,9 @@ const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1
 
 const { item } = row;
 
+// Saved on the first successful submit, so the form is typed once per account.
+const saved = user?.shipping ?? null;
+
 // Prava prices a session in a real currency; a candidate without one cannot be
 // charged, and an account without an email cannot receive the passkey prompt.
 let error: string | null = null;
@@ -33,6 +36,12 @@ if (!item.priceAmount || !item.currency) {
   error = 'Your account has no email address, which Prava requires to open a session.';
 } else {
   try {
+    // Must run before every session: a half-enrolled card poisons this
+    // customer id permanently, and no amount of refreshing or restarting
+    // clears it. See purgeEnrolledCards.
+    const purged = await purgeEnrolledCards(userId);
+    if (purged) console.log(`prava: purged ${purged} stored card(s) for ${userId}`);
+
     session = await createSession({
       userId,
       userEmail: user.email,
@@ -43,6 +52,7 @@ if (!item.priceAmount || !item.currency) {
         url: item.productUrl,
         countryCodeIso2: 'IN',
       },
+      callbackUrl: import.meta.env.PRAVA_CALLBACK_URL ?? process.env.PRAVA_CALLBACK_URL,
       products: [
         {
           description: item.title,
@@ -126,6 +136,30 @@ if (!item.priceAmount || !item.currency) {
             Prava mints one-time card credentials once you approve. Nothing is charged here.
           </p>
 
+          {/*
+            The guardrails are the reason this exists rather than storing the
+            user's own card: an agent drives a stranger's checkout, so the
+            credential it holds has to be worthless if it leaks.
+          */}
+          <ul class="mt-3 space-y-1.5 text-xs text-stone-600">
+            <li class="flex gap-2">
+              <span aria-hidden="true">→</span>
+              <span>Works <strong>once</strong>, then it's dead</span>
+            </li>
+            <li class="flex gap-2">
+              <span aria-hidden="true">→</span>
+              <span>Locked to <strong>{item.merchant ?? 'this merchant'}</strong> — unusable anywhere else</span>
+            </li>
+            <li class="flex gap-2">
+              <span aria-hidden="true">→</span>
+              <span>Capped at <strong>{item.priceAmount} {item.currency}</strong> — the total can't be changed after you approve</span>
+            </li>
+            <li class="flex gap-2">
+              <span aria-hidden="true">→</span>
+              <span>Your real card is never sent to the merchant, or to us</span>
+            </li>
+          </ul>
+
           <dl class="mt-4 space-y-1 text-xs text-stone-500">
             <div class="flex justify-between">
               <dt>Order</dt>
@@ -140,6 +174,7 @@ if (!item.priceAmount || !item.currency) {
           <p
             id="status"
             data-session={session.sessionId}
+            data-expires={session.expiresAt}
             class="mt-4 rounded-lg bg-stone-100 px-3 py-2 text-sm"
           >
             Waiting for authorization…
@@ -173,14 +208,14 @@ if (!item.priceAmount || !item.currency) {
                 Ship to
               </p>
               <input name="email" type="email" required value={user?.email ?? ''} placeholder="Email" class="col-span-2 rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="firstName" required placeholder="First name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="lastName" required placeholder="Last name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="address1" required placeholder="Address" class="col-span-2 rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="city" required placeholder="City" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="postalCode" required placeholder="PIN code" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="province" placeholder="State" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="phone" placeholder="Phone" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="countryCode" required value="IN" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="firstName" required value={saved?.firstName ?? ''} placeholder="First name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="lastName" required value={saved?.lastName ?? ''} placeholder="Last name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="address1" required value={saved?.address1 ?? ''} placeholder="Address" class="col-span-2 rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="city" required value={saved?.city ?? ''} placeholder="City" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="postalCode" required value={saved?.postalCode ?? ''} placeholder="PIN / ZIP" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="province" value={saved?.province ?? ''} placeholder="State" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="phone" value={saved?.phone ?? ''} placeholder="Phone" class="rounded border border-stone-300 px-2 py-1 text-xs" />
+              <input name="countryCode" required value={saved?.countryCode ?? 'US'} class="rounded border border-stone-300 px-2 py-1 text-xs" />
 
               <button
                 type="submit"
@@ -221,9 +256,31 @@ if (!item.priceAmount || !item.currency) {
   const sessionId = status?.dataset.session;
 
   if (status && sessionId) {
+    const expiresAt = Date.parse(status.dataset.expires ?? '') || Date.now() + 15 * 60_000;
+
+    const fail = (text: string) => {
+      status.textContent = text;
+      status.className = 'mt-4 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-900';
+    };
+
     const poll = async () => {
-      const res = await fetch(`/api/payment-result/${sessionId}`);
-      const body = await res.json();
+      // A session cannot be authorized past its 15-minute window, so stop
+      // rather than spinning on "Waiting for authorization…" indefinitely.
+      if (Date.now() > expiresAt) {
+        return fail('Session expired before it was authorized. Start a new checkout.');
+      }
+
+      let body;
+      try {
+        const res = await fetch(`/api/payment-result/${sessionId}`);
+        // A non-JSON error body (404, 401) would otherwise throw and kill the
+        // loop silently, leaving the page waiting forever.
+        if (!res.ok) throw new Error(`payment-result returned ${res.status}`);
+        body = await res.json();
+      } catch (err) {
+        console.error('poll failed, retrying', err);
+        return void setTimeout(poll, 3000);
+      }
 
       // Credentials land at 'awaiting_result'; 'completed' only happens after
       // the outcome is reported, so waiting for it would hang here forever.
@@ -246,7 +303,10 @@ if (!item.priceAmount || !item.currency) {
             event.preventDefault();
             if (!order) return;
 
-            order.textContent = 'Driving the merchant checkout…';
+            // The automation window is on the machine running the worker, so
+            // whoever is there has to clear a captcha if the merchant raises one.
+            order.textContent =
+              'Driving the merchant checkout… if a captcha appears in the automation window, solve it there and it will continue.';
             const shipping = Object.fromEntries(new FormData(form).entries());
 
             const res = await fetch(`/api/place-order/${sessionId}`, {
@@ -284,9 +344,12 @@ if (!item.priceAmount || !item.currency) {
       }
 
       if (body.status === 'failed') {
-        status.textContent = body.error?.message ?? 'Authorization failed.';
-        status.className = 'mt-4 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-900';
-        return;
+        // Surface the code as well as the message: FIDO_START_FAILED is a
+        // Prava-side authorization fault, not something to retry in place.
+        const code = body.error?.code;
+        return fail(
+          [code, body.error?.message ?? 'Authorization failed.'].filter(Boolean).join(': '),
+        );
       }
 
       setTimeout(poll, 2000);

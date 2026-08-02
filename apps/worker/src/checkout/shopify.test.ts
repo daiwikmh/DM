@@ -30,3 +30,9 @@ describe('matchDecline', () => {
     assert.equal(matchDecline('Thank you! Your order is confirmed.'), null);
   });
 });
+
+describe('outcome wording', () => {
+  test('a captcha wall is not mistaken for a decline', () => {
+    assert.equal(matchDecline('Solve the captcha to complete your purchase.'), null);
+  });
+});
