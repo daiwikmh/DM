@@ -1,6 +1,6 @@
 ---
 import { db, shares, items, identities } from '@prava/db';
-import { and, eq, desc, inArray, asc, ne } from 'drizzle-orm';
+import { and, eq, desc, inArray, asc, ne, isNotNull } from 'drizzle-orm';
 import ShareCard from './ShareCard.astro';
 import WaitlistCard from './WaitlistCard.astro';
 
@@ -47,14 +47,12 @@ if (userShares.length === 0) {
   hasIdentity = Boolean(identity);
 
   if (!hasIdentity) {
-    const demoIds = (import.meta.env.DEMO_ITEM_IDS ?? process.env.DEMO_ITEM_IDS ?? '')
-      .split(',')
-      .map((id: string) => id.trim())
-      .filter(Boolean);
-
-    if (demoIds.length) {
-      demoItems = await db.select().from(items).where(inArray(items.id, demoIds));
-    }
+    demoItems = await db
+      .select()
+      .from(items)
+      .where(and(isNotNull(items.priceAmount), eq(items.tier, 'buyable')))
+      .orderBy(desc(items.createdAt))
+      .limit(6);
   }
 }
 ---

@@ -51,12 +51,40 @@ const price = (item: Item) =>
     />
   </div>
 
+  <div class="border-t border-white/10 p-8 sm:p-10">
+    <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase">Try it now</p>
+    <h4 class="mt-2 text-[20px] leading-[1.05] font-medium tracking-[-0.04em] sm:text-[24px]">
+      Browse a real test user's finds and check one out
+    </h4>
+    <p class="mt-2 text-[13px] leading-relaxed text-white/40">
+      Know a test user's Instagram handle? Look up their dashboard and run the real Prava flow on
+      what they already sent us.
+    </p>
+    <form method="GET" action="" class="mt-4 flex max-w-md gap-3" data-demo-lookup-form>
+      <input
+        type="text"
+        name="handle"
+        required
+        placeholder="their.instagram"
+        class="w-full rounded-full border border-white/20 bg-transparent px-5 py-3 text-[15px] tracking-[-0.02em] text-white placeholder:text-white/30 focus:border-white focus:outline-none"
+      />
+      <button
+        type="submit"
+        class="shrink-0 rounded-full bg-white px-6 py-3 text-[15px] font-medium tracking-[-0.02em] text-black transition-transform hover:scale-[1.02]"
+      >
+        View
+      </button>
+    </form>
+  </div>
+
   {
     demoItems.length > 0 && (
       <div class="border-t border-white/10 p-8 sm:p-10">
-        <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase">Try it now</p>
+        <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase">
+          Or just pick one
+        </p>
         <h4 class="mt-2 text-[20px] leading-[1.05] font-medium tracking-[-0.04em] sm:text-[24px]">
-          Test the real Prava payment flow on items our test users already sent
+          Recent items from our test users
         </h4>
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {demoItems.map((item) => (
@@ -90,3 +118,12 @@ const price = (item: Item) =>
     )
   }
 </article>
+
+<script>
+  document.querySelector<HTMLFormElement>('[data-demo-lookup-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const input = (event.target as HTMLFormElement).querySelector<HTMLInputElement>('input[name="handle"]');
+    const handle = input?.value.trim().replace(/^@/, '');
+    if (handle) window.location.href = `/demo/${encodeURIComponent(handle)}`;
+  });
+</script>

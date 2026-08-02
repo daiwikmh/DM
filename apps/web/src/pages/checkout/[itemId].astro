@@ -2,7 +2,7 @@
 import '../../styles/global.css';
 import { CheckoutFlow } from '../../components/checkout/CheckoutFlow.tsx';
 import { db, items, shares, users, checkouts } from '@prava/db';
-import { createSession, purgeEnrolledCards } from '@prava/worker/payments/prava';
+import { createSession } from '@prava/worker/payments/prava';
 import { eq } from 'drizzle-orm';
 
 const { userId } = Astro.locals;
@@ -17,18 +17,11 @@ const [row] = await db
   .where(eq(items.id, itemId!))
   .limit(1);
 
-// Demo items are real items real test users sent us, allowlisted by id so a
-// judge (who can't send us their own reel while Meta's app is in developer
-// mode — see WaitlistCard) can still run the actual Prava flow end to end,
-// checking out with their own signed-in session rather than the sender's.
-const demoIds = (import.meta.env.DEMO_ITEM_IDS ?? process.env.DEMO_ITEM_IDS ?? '')
-  .split(',')
-  .map((id) => id.trim())
-  .filter(Boolean);
-
-if (!row || (row.share.userId !== userId && !demoIds.includes(row.item.id))) {
-  return new Response('Not found', { status: 404 });
-}
+// Any signed-in user can check out any resolved item — not just the sender —
+// so a judge (who can't send us their own reel while Meta's app is in
+// developer mode — see WaitlistCard) can run the actual Prava flow end to end
+// against a real test user's item, using their own signed-in session.
+if (!row) return new Response('Not found', { status: 404 });
 
 const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
@@ -43,9 +36,6 @@ if (!item.priceAmount || !item.currency) {
   error = 'Your account has no email address, which Prava requires to open a session.';
 } else {
   try {
-    const purged = await purgeEnrolledCards(userId);
-    if (purged) console.log(`prava: purged ${purged} stored card(s) for ${userId}`);
-
     session = await createSession({
       userId,
       userEmail: user.email,

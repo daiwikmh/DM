@@ -8,9 +8,11 @@ type Item = InferSelectModel<typeof items>;
 interface Props {
   share: Share;
   items: Item[];
+  /** Hides the delete control — for browsing another user's finds (e.g. the demo page). */
+  readOnly?: boolean;
 }
 
-const { share, items: shareItems } = Astro.props;
+const { share, items: shareItems, readOnly = false } = Astro.props;
 
 const best = shareItems[0];
 const alternates = shareItems.slice(1);
@@ -26,14 +28,18 @@ const buyable = (item: Item) => Boolean(item.priceAmount && item.currency);
 ---
 
 <article class="relative border border-white/10 bg-white/[0.03]">
-  <button
-    type="button"
-    data-delete-share={share.id}
-    aria-label="Delete this find"
-    class="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/70 text-[13px] text-white/70 opacity-60 transition hover:border-white hover:text-white hover:opacity-100 disabled:opacity-30"
-  >
-    &times;
-  </button>
+  {
+    !readOnly && (
+      <button
+        type="button"
+        data-delete-share={share.id}
+        aria-label="Delete this find"
+        class="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/70 text-[13px] text-white/70 opacity-60 transition hover:border-white hover:text-white hover:opacity-100 disabled:opacity-30"
+      >
+        &times;
+      </button>
+    )
+  }
 
   {
     share.thumbnail && (
