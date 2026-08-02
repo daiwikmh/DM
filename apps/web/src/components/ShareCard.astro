@@ -25,7 +25,16 @@ const price = (item: Item) =>
 const buyable = (item: Item) => Boolean(item.priceAmount && item.currency);
 ---
 
-<article class="border border-white/10 bg-white/[0.03]">
+<article class="relative border border-white/10 bg-white/[0.03]">
+  <button
+    type="button"
+    data-delete-share={share.id}
+    aria-label="Delete this find"
+    class="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/70 text-[13px] text-white/70 opacity-60 transition hover:border-white hover:text-white hover:opacity-100 disabled:opacity-30"
+  >
+    &times;
+  </button>
+
   {
     share.thumbnail && (
       <div class={`grid gap-px bg-white/10 ${best?.imageUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -167,3 +176,30 @@ const buyable = (item: Item) => Boolean(item.priceAmount && item.currency);
     )
   }
 </article>
+
+<script>
+  // Delegated, because this component repeats across the grid — Astro bundles a
+  // component's script once no matter how many instances render.
+  document.addEventListener('click', async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-delete-share]');
+    if (!button) return;
+
+    if (!confirm('Delete this find? Its matches and any checkouts against them go too.')) return;
+
+    button.disabled = true;
+    const res = await fetch(`/api/share/${button.dataset.deleteShare}`, { method: 'DELETE' });
+
+    if (!res.ok) {
+      button.disabled = false;
+      return;
+    }
+
+    const card = button.closest('article');
+    const grid = card?.parentElement;
+    card?.remove();
+
+    // Nothing left to show means the grid's own empty state should take over,
+    // and only the server knows how to render it.
+    if (grid && grid.children.length === 0) location.reload();
+  });
+</script>

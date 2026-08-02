@@ -1,16 +1,21 @@
 ---
 import DashboardShell from '../layouts/DashboardShell.astro';
 import { db, checkouts, items } from '@prava/db';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 
 const { userId } = Astro.locals;
 if (!userId) return Astro.redirect('/');
+
+// This page is the live view of what is happening right now, not a ledger. A
+// Prava session dies 15 minutes after it opens, so that window is the cutoff:
+// everything older has already played out and is dropped, whatever it ended as.
+const liveSince = new Date(Date.now() - 15 * 60_000);
 
 const rows = await db
   .select({ checkout: checkouts, item: items })
   .from(checkouts)
   .innerJoin(items, eq(checkouts.itemId, items.id))
-  .where(eq(checkouts.userId, userId))
+  .where(and(eq(checkouts.userId, userId), gt(checkouts.createdAt, liveSince)))
   .orderBy(desc(checkouts.createdAt))
   .limit(50);
 
@@ -28,6 +33,54 @@ const TONE: Record<string, string> = {
   placed: 'border-white bg-white text-black',
   declined: 'border-amber-400/50 text-amber-300',
   failed: 'border-red-400/50 text-red-300',
+};
+
+/** How many of the five beats a status has actually completed. */
+const REACHED: Record<string, number> = {
+  authorizing: 1,
+  authorized: 3,
+  placed: 5,
+  declined: 5,
+  failed: 3,
+};
+
+type StepState = 'done' | 'warn' | 'blocked' | 'active' | 'pending';
+
+/**
+ * The same five beats the checkout screen animates through, replayed from
+ * whatever the row settled on — so a checkout reads the same in both places.
+ */
+const flowFor = (status: string): { label: string; state: StepState }[] => {
+  const labels = ['Session', 'Passkey', 'Card minted', 'Bought', 'Reported'];
+  if (status === 'declined') labels[3] = 'Declined';
+  if (status === 'failed') labels[3] = 'Agent stalled';
+
+  const done = REACHED[status] ?? 0;
+
+  return labels.map((label, i) => {
+    let state: StepState = 'pending';
+    if (status === 'declined' && i === 3) state = 'warn';
+    else if (status === 'failed' && i === 3) state = 'blocked';
+    else if (i < done) state = 'done';
+    else if (i === done) state = 'active';
+    return { label, state };
+  });
+};
+
+const DOT: Record<StepState, string> = {
+  done: 'bg-white border-white',
+  warn: 'bg-amber-300 border-amber-300',
+  blocked: 'border-amber-300',
+  active: 'border-white',
+  pending: 'border-white/20',
+};
+
+const TEXT: Record<StepState, string> = {
+  done: 'text-white/70',
+  warn: 'text-amber-300',
+  blocked: 'text-amber-300',
+  active: 'text-white',
+  pending: 'text-white/25',
 };
 
 const money = (amount: string | null, currency: string | null) =>
@@ -49,15 +102,15 @@ const money = (amount: string | null, currency: string | null) =>
   {
     rows.length === 0 ? (
       <div class="border border-dashed border-white/15 px-6 py-16 text-center">
-        <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">No checkouts yet</p>
+        <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">Nothing in flight</p>
         <p class="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-white/40 sm:text-[15px]">
-          Buy one of your finds in a single click and it will show up here.
+          Buy one of your finds in a single click and it will show up here while it runs.
         </p>
       </div>
     ) : (
       <ul class="border-t border-white/10">
         {rows.map(({ checkout, item }) => (
-          <li class="border-b border-white/10 py-5">
+          <li class="border-b border-white/10 py-6">
             <div class="flex items-start justify-between gap-6">
               <div class="min-w-0">
                 <p class="truncate text-[20px] leading-[1.05] font-medium tracking-[-0.04em]">
@@ -69,12 +122,6 @@ const money = (amount: string | null, currency: string | null) =>
                     <span class="text-white"> · {money(checkout.totalAmount, checkout.currency)}</span>
                   )}
                 </p>
-                {checkout.outcome && (
-                  <p class="mt-2 text-[13px] text-white/40">{checkout.outcome}</p>
-                )}
-                <p class="mt-2 font-mono text-[11px] text-white/25">
-                  {checkout.orderId ?? checkout.sessionId}
-                </p>
               </div>
 
               <span
@@ -83,6 +130,28 @@ const money = (amount: string | null, currency: string | null) =>
                 {LABEL[checkout.status]}
               </span>
             </div>
+
+            <ol class="mt-5 flex flex-wrap items-center gap-y-2">
+              {flowFor(checkout.status).map((step, i) => (
+                <>
+                  {i > 0 && <span class="mx-2 h-px w-4 shrink-0 bg-white/15 sm:w-6" />}
+                  <li class="flex items-center gap-2">
+                    <span class={`h-2.5 w-2.5 shrink-0 rounded-full border ${DOT[step.state]}`} />
+                    <span
+                      class={`text-[11px] font-medium tracking-[-0.02em] uppercase ${TEXT[step.state]}`}
+                    >
+                      {step.label}
+                    </span>
+                  </li>
+                </>
+              ))}
+            </ol>
+
+            {checkout.outcome && <p class="mt-4 text-[13px] text-white/40">{checkout.outcome}</p>}
+
+            <p class="mt-2 font-mono text-[11px] text-white/25">
+              {checkout.orderId ?? checkout.sessionId}
+            </p>
           </li>
         ))}
       </ul>

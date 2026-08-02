@@ -1,6 +1,6 @@
 ---
 import { db, shares, items } from '@prava/db';
-import { eq, desc, inArray, asc } from 'drizzle-orm';
+import { and, eq, desc, inArray, asc, ne } from 'drizzle-orm';
 import ShareCard from './ShareCard.astro';
 
 interface Props {
@@ -9,10 +9,13 @@ interface Props {
 
 const { userId } = Astro.props;
 
+// A share that could not be read has nothing to show and no action to take, so
+// it is left out of the grid rather than rendered as a dead card with the
+// resolver's raw error on it.
 const userShares = await db
   .select()
   .from(shares)
-  .where(eq(shares.userId, userId))
+  .where(and(eq(shares.userId, userId), ne(shares.status, 'failed')))
   .orderBy(desc(shares.createdAt))
   .limit(60);
 

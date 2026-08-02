@@ -82,7 +82,26 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [passkeyReady, setPasskeyReady] = useState<boolean | null>(null);
   const startedRef = useRef(false);
+
+  /**
+   * Passkey payments need a real browser with a platform authenticator. An
+   * embedded webview or a desktop profile without one dies inside Prava's page
+   * before the cardholder does anything, so the dead end is caught out here.
+   */
+  useEffect(() => {
+    const embedded = /Electron\/|Code\/|; wv\)/.test(navigator.userAgent);
+    if (embedded) return setPasskeyReady(false);
+
+    const probe = window.PublicKeyCredential?.isUserVerifyingPlatformAuthenticatorAvailable;
+    if (!probe) return setPasskeyReady(false);
+
+    probe
+      .call(window.PublicKeyCredential)
+      .then((available) => setPasskeyReady(available))
+      .catch(() => setPasskeyReady(false));
+  }, []);
 
   const fail = useCallback((message: string) => {
     setError(message);
@@ -245,7 +264,19 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
                   transition={{ duration: 0.35, ease: EASE }}
                 >
                   <Guardrails merchant={merchantName} priceLabel={priceLabel} />
-                  <BuyButton onClick={start} />
+                  {passkeyReady === false ? (
+                    <div className="mt-8 border border-amber-300/40 p-5">
+                      <p className="text-[20px] leading-none font-medium tracking-[-0.04em] text-amber-300">
+                        This device can't approve the payment
+                      </p>
+                      <p className="mt-3 text-[13px] leading-relaxed text-white/50">
+                        Prava needs a passkey — Face ID, Touch ID or Windows Hello. Open this page in
+                        Safari or Chrome on a device that has one, rather than in an in-app browser.
+                      </p>
+                    </div>
+                  ) : (
+                    <BuyButton onClick={start} />
+                  )}
                 </motion.div>
               ) : (
                 <motion.div

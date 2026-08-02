@@ -42,8 +42,10 @@ if (!item.priceAmount || !item.currency) {
       currency: item.currency,
       merchant: {
         name: item.merchant ?? 'Unknown merchant',
+        // The catalog is US storefronts priced in USD, so the merchant country
+        // is US. createSession reduces the product URL to its bare origin.
         url: item.productUrl,
-        countryCodeIso2: 'IN',
+        countryCodeIso2: 'US',
       },
       callbackUrl: (() => {
         const base = import.meta.env.PRAVA_CALLBACK_URL ?? process.env.PRAVA_CALLBACK_URL;
