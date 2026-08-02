@@ -52,7 +52,11 @@ if (!item.priceAmount || !item.currency) {
         url: item.productUrl,
         countryCodeIso2: 'IN',
       },
-      callbackUrl: import.meta.env.PRAVA_CALLBACK_URL ?? process.env.PRAVA_CALLBACK_URL,
+      // Tell the worker which front end to return the cardholder to.
+      callbackUrl: (() => {
+        const base = import.meta.env.PRAVA_CALLBACK_URL ?? process.env.PRAVA_CALLBACK_URL;
+        return base ? `${base}?to=${encodeURIComponent(Astro.url.origin)}` : undefined;
+      })(),
       products: [
         {
           description: item.title,

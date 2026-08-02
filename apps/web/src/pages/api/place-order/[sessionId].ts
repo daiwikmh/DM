@@ -3,7 +3,7 @@ import { db, items, checkouts, users, type ShippingAddress } from '@prava/db';
 import { and, eq } from 'drizzle-orm';
 import { getPaymentResult, reportStatus } from '@prava/worker/payments/prava';
 
-const EXECUTOR = process.env.CHECKOUT_EXECUTOR_URL ?? 'http://127.0.0.1:8788/execute';
+const EXECUTOR = process.env.CHECKOUT_EXECUTOR_URL ?? 'http://127.0.0.1:8787/execute';
 
 interface ExecutorResult {
   status: 'placed' | 'declined' | 'failed';
@@ -66,7 +66,11 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const executorRes = await fetch(EXECUTOR, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      // The executor spends real credentials, so it authenticates every caller.
+      'x-checkout-secret': process.env.CHECKOUT_SHARED_SECRET ?? '',
+    },
     body: JSON.stringify({
       productUrl: item.productUrl,
       card: payment.credentials,
