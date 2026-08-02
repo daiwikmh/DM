@@ -24,10 +24,17 @@ const TABS = [
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <meta name="application-name" content="justdm" />
+    <meta name="theme-color" content="#000000" />
     <meta property="og:site_name" content="justdm" />
     <meta property="og:title" content={title} />
     <meta property="og:image" content="/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <script is:inline>
       // Applied before paint so the sidebar doesn't flash expanded then collapse.
       if (localStorage.getItem('sidebar-collapsed') === '1') {
@@ -35,18 +42,31 @@ const TABS = [
       }
     </script>
   </head>
-  <body class="h-full bg-stone-50 text-stone-900 antialiased">
-    <div class="flex h-full">
+  <body class="font-display h-full bg-black text-white antialiased">
+    {/* Keeps the flat black from reading as an unstyled page. */}
+    <div
+      class="pointer-events-none fixed inset-0 z-0"
+      style="background: radial-gradient(120% 80% at 50% -10%, rgba(255,255,255,0.09), transparent 60%)"
+    >
+    </div>
+
+    <div class="relative z-10 flex h-full">
       <aside
-        class="hidden w-56 shrink-0 flex-col border-r border-stone-200 bg-white transition-[width] duration-150 sm:flex [.sidebar-collapsed_&]:w-16"
+        class="hidden w-64 shrink-0 flex-col border-r border-white/10 transition-[width] duration-150 sm:flex [.sidebar-collapsed_&]:w-20"
       >
-        <div class="flex items-center justify-between px-4 py-4">
-          <span class="text-sm font-semibold tracking-tight [.sidebar-collapsed_&]:hidden">JUSTDM</span>
+        <div class="flex items-center justify-between px-6 py-6 [.sidebar-collapsed_&]:px-5">
+          <a href="/dashboard" class="[.sidebar-collapsed_&]:hidden">
+            <svg viewBox="0 0 355 110" class="w-[124px]">
+              <text x="0" y="75" fill="#ffffff" font-size="72" font-weight="500" letter-spacing="-2">
+                JUSTDM
+              </text>
+            </svg>
+          </a>
           <button
             id="sidebar-toggle"
             type="button"
             aria-label="Toggle sidebar"
-            class="rounded p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-900"
+            class="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white"
           >
             <svg
               width="16"
@@ -66,17 +86,19 @@ const TABS = [
           </button>
         </div>
 
-        <nav class="flex flex-1 flex-col gap-1 px-2">
+        <nav class="flex flex-1 flex-col gap-1 px-3">
           {
             TABS.map((tab) => (
               <a
                 href={tab.href}
                 class:list={[
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
-                  active === tab.key ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900',
+                  'flex items-center gap-3 rounded-full px-3 py-2.5 text-[15px] font-medium tracking-[-0.02em] uppercase transition-colors',
+                  active === tab.key
+                    ? 'bg-white text-black'
+                    : 'text-white/50 hover:bg-white/10 hover:text-white',
                 ]}
               >
-                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">
                   {tab.abbr}
                 </span>
                 <span class="[.sidebar-collapsed_&]:hidden">{tab.label}</span>
@@ -85,12 +107,14 @@ const TABS = [
           }
         </nav>
 
-        <div class="px-2 pb-4">
+        <div class="px-3 pb-6">
           <a
             href="/logout"
-            class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+            class="flex items-center gap-3 rounded-full px-3 py-2.5 text-[15px] font-medium tracking-[-0.02em] text-white/40 uppercase transition-colors hover:bg-white/10 hover:text-white"
           >
-            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-current text-[11px]">
+            <span
+              class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-[11px]"
+            >
               &times;
             </span>
             <span class="[.sidebar-collapsed_&]:hidden">Sign out</span>
@@ -99,16 +123,24 @@ const TABS = [
       </aside>
 
       <div class="flex min-h-full flex-1 flex-col overflow-y-auto">
-        <header class="flex items-center justify-between border-b border-stone-200 bg-white px-4 py-3 sm:hidden">
-          <span class="text-sm font-semibold tracking-tight">JUSTDM</span>
+        <header
+          class="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-black/80 px-4 py-3 backdrop-blur sm:hidden"
+        >
+          <a href="/dashboard">
+            <svg viewBox="0 0 355 110" class="w-[86px]">
+              <text x="0" y="75" fill="#ffffff" font-size="72" font-weight="500" letter-spacing="-2">
+                JUSTDM
+              </text>
+            </svg>
+          </a>
           <nav class="flex gap-1">
             {
               TABS.map((tab) => (
                 <a
                   href={tab.href}
                   class:list={[
-                    'rounded-md px-2.5 py-1.5 text-xs font-medium',
-                    active === tab.key ? 'bg-stone-900 text-white' : 'text-stone-600',
+                    'rounded-full px-3 py-1.5 text-[11px] font-medium tracking-[-0.02em] uppercase',
+                    active === tab.key ? 'bg-white text-black' : 'text-white/50',
                   ]}
                 >
                   {tab.label}
@@ -118,7 +150,7 @@ const TABS = [
           </nav>
         </header>
 
-        <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
+        <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-8 sm:py-12">
           <slot />
         </main>
       </div>

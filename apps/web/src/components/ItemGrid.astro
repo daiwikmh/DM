@@ -34,14 +34,14 @@ const byShare = Map.groupBy(shareItems, (item) => item.shareId);
 
 {
   userShares.length === 0 ? (
-    <div class="rounded-xl border border-dashed border-stone-300 p-10 text-center">
-      <p class="font-medium">Nothing here yet</p>
-      <p class="mt-1 text-sm text-stone-500">
+    <div class="border border-dashed border-white/15 px-6 py-16 text-center">
+      <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">Nothing here yet</p>
+      <p class="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-white/40 sm:text-[15px]">
         Send a reel to your Instagram or WhatsApp and it will show up here.
       </p>
     </div>
   ) : (
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {userShares.map((share) => (
         <ShareCard share={share} items={byShare.get(share.id) ?? []} />
       ))}

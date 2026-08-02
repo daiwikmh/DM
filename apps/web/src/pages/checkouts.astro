@@ -23,11 +23,11 @@ const LABEL: Record<string, string> = {
 };
 
 const TONE: Record<string, string> = {
-  authorizing: 'bg-stone-100 text-stone-700',
-  authorized: 'bg-blue-100 text-blue-900',
-  placed: 'bg-green-100 text-green-900',
-  declined: 'bg-amber-100 text-amber-900',
-  failed: 'bg-red-100 text-red-900',
+  authorizing: 'border-white/20 text-white/60',
+  authorized: 'border-white text-white',
+  placed: 'border-white bg-white text-black',
+  declined: 'border-amber-400/50 text-amber-300',
+  failed: 'border-red-400/50 text-red-300',
 };
 
 const money = (amount: string | null, currency: string | null) =>
@@ -37,48 +37,52 @@ const money = (amount: string | null, currency: string | null) =>
 ---
 
 <DashboardShell title="Checkouts" active="checkouts">
-  <header class="mb-6">
-    <h1 class="text-2xl font-semibold tracking-tight">Checkouts</h1>
+  <header class="mb-10">
+    <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase sm:text-[13px]">
+      One-time cards, minted on your passkey
+    </p>
+    <h1 class="mt-3 text-[44px] leading-[0.9] font-medium tracking-[-0.04em] sm:text-[64px]">
+      Checkouts
+    </h1>
   </header>
 
   {
     rows.length === 0 ? (
-      <div class="rounded-xl border border-dashed border-stone-300 p-10 text-center">
-        <p class="font-medium">No checkouts yet</p>
-        <p class="mt-1 text-sm text-stone-500">
-          Pay with Prava on one of your finds and it will show up here.
+      <div class="border border-dashed border-white/15 px-6 py-16 text-center">
+        <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">No checkouts yet</p>
+        <p class="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-white/40 sm:text-[15px]">
+          Buy one of your finds in a single click and it will show up here.
         </p>
       </div>
     ) : (
-      <ul class="space-y-3">
+      <ul class="border-t border-white/10">
         {rows.map(({ checkout, item }) => (
-          <li class="rounded-xl border border-stone-200 bg-white p-4">
-            <div class="flex items-start justify-between gap-4">
+          <li class="border-b border-white/10 py-5">
+            <div class="flex items-start justify-between gap-6">
               <div class="min-w-0">
-                <p class="truncate font-medium">{item.title}</p>
-                <p class="mt-1 text-sm text-stone-500">
+                <p class="truncate text-[20px] leading-[1.05] font-medium tracking-[-0.04em]">
+                  {item.title}
+                </p>
+                <p class="mt-2 text-[13px] tracking-[-0.02em] text-white/40 uppercase">
                   {item.merchant}
                   {money(checkout.totalAmount, checkout.currency) && (
-                    <span class="text-stone-900">
-                      {' '}
-                      · {money(checkout.totalAmount, checkout.currency)}
-                    </span>
+                    <span class="text-white"> · {money(checkout.totalAmount, checkout.currency)}</span>
                   )}
+                </p>
+                {checkout.outcome && (
+                  <p class="mt-2 text-[13px] text-white/40">{checkout.outcome}</p>
+                )}
+                <p class="mt-2 font-mono text-[11px] text-white/25">
+                  {checkout.orderId ?? checkout.sessionId}
                 </p>
               </div>
 
               <span
-                class={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${TONE[checkout.status]}`}
+                class={`shrink-0 rounded-full border px-4 py-1.5 text-[11px] font-medium tracking-[-0.02em] uppercase ${TONE[checkout.status]}`}
               >
                 {LABEL[checkout.status]}
               </span>
             </div>
-
-            {checkout.outcome && <p class="mt-2 text-xs text-stone-500">{checkout.outcome}</p>}
-
-            <p class="mt-2 font-mono text-xs text-stone-400">
-              {checkout.orderId ?? checkout.sessionId}
-            </p>
           </li>
         ))}
       </ul>

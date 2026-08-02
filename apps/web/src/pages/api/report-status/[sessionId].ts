@@ -4,10 +4,12 @@ import { and, eq } from 'drizzle-orm';
 import { reportStatus, PravaError } from '@prava/worker/payments/prava';
 
 /**
- * Manual fallback for when the executor never reaches a gateway verdict.
+ * Fallback for when the executor never reaches a gateway verdict.
  *
- * This is the user's own attestation, not an authoritative outcome, so it is
- * deliberately secondary to /api/place-order.
+ * This is the user's own attestation after finishing at the merchant by hand,
+ * not an authoritative outcome, so it is deliberately secondary to
+ * /api/place-order. It exists because Prava requires an outcome either way —
+ * an unreported session sits in 'awaiting_result' forever.
  */
 export const POST: APIRoute = async ({ params, request, locals }) => {
   if (!locals.userId) return new Response('Unauthorized', { status: 401 });
@@ -39,7 +41,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .update(checkouts)
       .set({
         status: body.status === 'APPROVED' ? 'placed' : 'declined',
-        outcome: 'reported manually by the user',
+        outcome: 'reported by the user after finishing at the merchant',
         settledAt: new Date(),
       })
       .where(eq(checkouts.id, checkout.id));

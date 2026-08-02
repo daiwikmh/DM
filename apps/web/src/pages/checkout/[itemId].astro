@@ -1,5 +1,6 @@
 ---
-import DashboardShell from '../../layouts/DashboardShell.astro';
+import '../../styles/global.css';
+import { CheckoutFlow } from '../../components/checkout/CheckoutFlow.tsx';
 import { db, items, shares, users, checkouts } from '@prava/db';
 import { createSession, purgeEnrolledCards } from '@prava/worker/payments/prava';
 import { eq } from 'drizzle-orm';
@@ -21,9 +22,6 @@ if (!row || row.share.userId !== userId) return new Response('Not found', { stat
 const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
 const { item } = row;
-
-// Saved on the first successful submit, so the form is typed once per account.
-const saved = user?.shipping ?? null;
 
 // Prava prices a session in a real currency; a candidate without one cannot be
 // charged, and an account without an email cannot receive the passkey prompt.
@@ -67,7 +65,7 @@ if (!item.priceAmount || !item.currency) {
       ],
     });
 
-    // Recorded before the user touches the iframe: without a local row, a
+    // Recorded before the user touches the hosted page: without a local row, a
     // session id is unverifiable and any signed-in user could poll or settle
     // someone else's checkout.
     await db.insert(checkouts).values({
@@ -83,282 +81,84 @@ if (!item.priceAmount || !item.currency) {
     error = err instanceof Error ? err.message : String(err);
   }
 }
+
+const priceLabel =
+  item.priceAmount && item.currency
+    ? new Intl.NumberFormat('en', { style: 'currency', currency: item.currency }).format(
+        Number(item.priceAmount),
+      )
+    : '';
 ---
 
-<DashboardShell title="Checkout" active="checkouts">
-  <header class="mb-6">
-    <h1 class="text-2xl font-semibold tracking-tight">Checkout</h1>
-    <p class="mt-1 text-sm text-stone-500">
-      {item.title}{item.merchant && ` · ${item.merchant}`}
-    </p>
-  </header>
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Checkout — {item.title}</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <meta name="application-name" content="justdm" />
+    <meta name="theme-color" content="#000000" />
+    <meta property="og:site_name" content="justdm" />
+    <meta property="og:image" content="/og-image.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="font-display min-h-dvh bg-black text-white antialiased">
+    {
+      /*
+        The Prava session is opened as a top-level tab from inside the click,
+        not embedded. The session is created with integration_type
+        'full_checkout' — Prava's hosted page — and passkey registration happens
+        in a nested Visa iframe inside it. WebAuthn across that chain needs
+        every ancestor to delegate publickey-credentials-create, and we don't
+        control Prava's frame, so embedding fails with "Visa iframe failed to
+        initialize". Top-level has no chain to break.
+      */
+    }
+    {
+      session && (
+        <CheckoutFlow
+          client:load
+          sessionId={session.sessionId}
+          checkoutUrl={session.iframeUrl}
+          expiresAt={session.expiresAt}
+          orderId={session.orderId}
+          itemId={item.id}
+          title={item.title}
+          merchant={item.merchant}
+          imageUrl={item.imageUrl}
+          productUrl={item.productUrl}
+          priceLabel={priceLabel}
+          email={user!.email!}
+          shipping={user?.shipping ?? null}
+        />
+      )
+    }
 
-  {
-    error && (
-      <div class="rounded-xl border border-red-200 bg-red-50 p-6">
-        <p class="font-medium text-red-900">Could not start checkout</p>
-        <p class="mt-1 text-sm text-red-700">{error}</p>
-      </div>
-    )
-  }
-
-  {
-    session && (
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        {/*
-          Opened as a top-level tab, not embedded. The session is created with
-          integration_type 'full_checkout' — Prava's hosted page — and passkey
-          registration happens in a nested Visa iframe inside it. WebAuthn
-          across that chain needs every ancestor to delegate
-          publickey-credentials-create, and we don't control Prava's frame, so
-          embedding fails with "Visa iframe failed to initialize". Top-level has
-          no chain to break. Embedding properly means the @prava-sdk/core
-          collectPAN path with integration_type 'embedding'.
-        */}
-        <div class="flex flex-col items-center justify-center rounded-xl border border-stone-200 bg-white p-10 text-center">
-          <p class="text-lg font-medium">Authorize this payment</p>
-          <p class="mt-2 max-w-sm text-sm text-stone-500">
-            Prava opens in a new tab for card entry and passkey approval. Leave this page open —
-            it updates as soon as the card is minted.
+    {
+      error && (
+        <div class="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-4 sm:px-8">
+          <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase sm:text-[13px]">
+            Checkout could not start
           </p>
-
+          <h1 class="mt-3 text-[30px] leading-[0.95] font-medium tracking-[-0.04em] sm:text-[44px]">
+            {item.title}
+          </h1>
+          <p class="mt-4 text-[15px] leading-relaxed text-white/60">{error}</p>
           <a
-            href={session.iframeUrl}
-            target="_blank"
-            rel="noopener"
-            class="mt-6 rounded-lg bg-stone-900 px-6 py-3 text-sm font-medium text-white hover:bg-stone-700"
+            href="/dashboard"
+            class="mt-8 block rounded-full bg-white px-6 py-4 text-center text-[15px] font-medium tracking-[-0.02em] text-black sm:text-[20px]"
           >
-            Open Prava checkout
+            Back to finds
           </a>
-
-          <p class="mt-4 text-xs text-stone-400">Session expires 15 minutes after it was created.</p>
         </div>
-
-        <aside class="rounded-xl border border-stone-200 bg-white p-4">
-          <p class="text-sm font-medium">Authorize with your passkey</p>
-          <p class="mt-1 text-xs text-stone-500">
-            Prava mints one-time card credentials once you approve. Nothing is charged here.
-          </p>
-
-          {/*
-            The guardrails are the reason this exists rather than storing the
-            user's own card: an agent drives a stranger's checkout, so the
-            credential it holds has to be worthless if it leaks.
-          */}
-          <ul class="mt-3 space-y-1.5 text-xs text-stone-600">
-            <li class="flex gap-2">
-              <span aria-hidden="true">→</span>
-              <span>Works <strong>once</strong>, then it's dead</span>
-            </li>
-            <li class="flex gap-2">
-              <span aria-hidden="true">→</span>
-              <span>Locked to <strong>{item.merchant ?? 'this merchant'}</strong> — unusable anywhere else</span>
-            </li>
-            <li class="flex gap-2">
-              <span aria-hidden="true">→</span>
-              <span>Capped at <strong>{item.priceAmount} {item.currency}</strong> — the total can't be changed after you approve</span>
-            </li>
-            <li class="flex gap-2">
-              <span aria-hidden="true">→</span>
-              <span>Your real card is never sent to the merchant, or to us</span>
-            </li>
-          </ul>
-
-          <dl class="mt-4 space-y-1 text-xs text-stone-500">
-            <div class="flex justify-between">
-              <dt>Order</dt>
-              <dd class="font-mono">{session.orderId}</dd>
-            </div>
-            <div class="flex justify-between">
-              <dt>Amount</dt>
-              <dd>{item.priceAmount} {item.currency}</dd>
-            </div>
-          </dl>
-
-          <p
-            id="status"
-            data-session={session.sessionId}
-            data-expires={session.expiresAt}
-            class="mt-4 rounded-lg bg-stone-100 px-3 py-2 text-sm"
-          >
-            Waiting for authorization…
-          </p>
-
-          {/*
-            Prava mints credentials; it never places the order. With no
-            merchant-execution layer, the card is handed to the user to
-            complete the purchase at the merchant themselves.
-          */}
-          <div id="card" hidden class="mt-4 rounded-lg border border-stone-200 p-3">
-            <p class="text-xs font-medium tracking-wide text-stone-500 uppercase">
-              One-time card
-            </p>
-            <dl class="mt-2 space-y-1 font-mono text-sm">
-              <div class="flex justify-between"><dt class="text-stone-500">Number</dt><dd id="card-token" /></div>
-              <div class="flex justify-between"><dt class="text-stone-500">CVV</dt><dd id="card-cvv" /></div>
-              <div class="flex justify-between"><dt class="text-stone-500">Expiry</dt><dd id="card-exp" /></div>
-            </dl>
-            <a
-              href={item.productUrl}
-              target="_blank"
-              rel="noopener nofollow"
-              class="mt-3 block rounded-lg bg-stone-900 px-4 py-2 text-center text-sm font-medium text-white hover:bg-stone-700"
-            >
-              Complete at {item.merchant ?? 'merchant'}
-            </a>
-
-            <form id="ship" class="mt-4 grid grid-cols-2 gap-2" data-item={item.id}>
-              <p class="col-span-2 text-xs font-medium tracking-wide text-stone-500 uppercase">
-                Ship to
-              </p>
-              <input name="email" type="email" required value={user?.email ?? ''} placeholder="Email" class="col-span-2 rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="firstName" required value={saved?.firstName ?? ''} placeholder="First name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="lastName" required value={saved?.lastName ?? ''} placeholder="Last name" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="address1" required value={saved?.address1 ?? ''} placeholder="Address" class="col-span-2 rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="city" required value={saved?.city ?? ''} placeholder="City" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="postalCode" required value={saved?.postalCode ?? ''} placeholder="PIN / ZIP" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="province" value={saved?.province ?? ''} placeholder="State" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="phone" value={saved?.phone ?? ''} placeholder="Phone" class="rounded border border-stone-300 px-2 py-1 text-xs" />
-              <input name="countryCode" required value={saved?.countryCode ?? 'US'} class="rounded border border-stone-300 px-2 py-1 text-xs" />
-
-              <button
-                type="submit"
-                class="col-span-2 mt-1 rounded-lg bg-stone-900 px-4 py-2 text-sm font-medium text-white hover:bg-stone-700"
-              >
-                Buy it for me
-              </button>
-            </form>
-
-            <p id="order" class="mt-3 text-xs text-stone-500" />
-
-            <details class="mt-3">
-              <summary class="cursor-pointer text-xs text-stone-500">Settle manually instead</summary>
-              <div class="mt-2 flex gap-2">
-                <button
-                  data-settle="APPROVED"
-                  class="flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
-                >
-                  It worked
-                </button>
-                <button
-                  data-settle="DECLINED"
-                  class="flex-1 rounded-lg border border-stone-300 px-3 py-1.5 text-xs font-medium hover:bg-stone-50"
-                >
-                  It failed
-                </button>
-              </div>
-            </details>
-          </div>
-        </aside>
-      </div>
-    )
-  }
-</DashboardShell>
-
-<script>
-  const status = document.getElementById('status');
-  const sessionId = status?.dataset.session;
-
-  if (status && sessionId) {
-    const expiresAt = Date.parse(status.dataset.expires ?? '') || Date.now() + 15 * 60_000;
-
-    const fail = (text: string) => {
-      status.textContent = text;
-      status.className = 'mt-4 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-900';
-    };
-
-    const poll = async () => {
-      // A session cannot be authorized past its 15-minute window, so stop
-      // rather than spinning on "Waiting for authorization…" indefinitely.
-      if (Date.now() > expiresAt) {
-        return fail('Session expired before it was authorized. Start a new checkout.');
-      }
-
-      let body;
-      try {
-        const res = await fetch(`/api/payment-result/${sessionId}`);
-        // A non-JSON error body (404, 401) would otherwise throw and kill the
-        // loop silently, leaving the page waiting forever.
-        if (!res.ok) throw new Error(`payment-result returned ${res.status}`);
-        body = await res.json();
-      } catch (err) {
-        console.error('poll failed, retrying', err);
-        return void setTimeout(poll, 3000);
-      }
-
-      // Credentials land at 'awaiting_result'; 'completed' only happens after
-      // the outcome is reported, so waiting for it would hang here forever.
-      if (body.credentials) {
-        status.textContent = 'Authorized — payment credentials minted.';
-        status.className = 'mt-4 rounded-lg bg-green-100 px-3 py-2 text-sm text-green-900';
-
-        const card = document.getElementById('card');
-        if (card) {
-          document.getElementById('card-token')!.textContent = body.credentials.token;
-          document.getElementById('card-cvv')!.textContent = body.credentials.dynamicCvv;
-          document.getElementById('card-exp')!.textContent =
-            `${body.credentials.expiryMonth}/${body.credentials.expiryYear}`;
-          card.hidden = false;
-
-          const form = document.getElementById('ship') as HTMLFormElement | null;
-          const order = document.getElementById('order');
-
-          form?.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            if (!order) return;
-
-            // The automation window is on the machine running the worker, so
-            // whoever is there has to clear a captcha if the merchant raises one.
-            order.textContent =
-              'Driving the merchant checkout… if a captcha appears in the automation window, solve it there and it will continue.';
-            const shipping = Object.fromEntries(new FormData(form).entries());
-
-            const res = await fetch(`/api/place-order/${sessionId}`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ itemId: form.dataset.item, shipping }),
-            });
-            const result = await res.json();
-
-            // A decline is the merchant's verdict on a real card — the chain ran.
-            order.textContent =
-              result.status === 'placed'
-                ? `Order placed. ${result.url ?? ''}`
-                : result.status === 'declined'
-                  ? `Declined at the merchant: ${result.message} — reported to Prava.`
-                  : `Could not complete: ${result.message}`;
-          });
-
-          const txnRefId = body.credentials.txnRefId;
-          for (const button of card.querySelectorAll<HTMLButtonElement>('[data-settle]')) {
-            button.addEventListener('click', async () => {
-              const res = await fetch(`/api/report-status/${sessionId}`, {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ txnRefId, status: button.dataset.settle }),
-              });
-              const settled = await res.json();
-              status.textContent = settled.ok
-                ? `Reported to Prava as ${button.dataset.settle}.`
-                : `Could not report: ${settled.message}`;
-            });
-          }
-        }
-        return;
-      }
-
-      if (body.status === 'failed') {
-        // Surface the code as well as the message: FIDO_START_FAILED is a
-        // Prava-side authorization fault, not something to retry in place.
-        const code = body.error?.code;
-        return fail(
-          [code, body.error?.message ?? 'Authorization failed.'].filter(Boolean).join(': '),
-        );
-      }
-
-      setTimeout(poll, 2000);
-    };
-
-    void poll();
-  }
-</script>
+      )
+    }
+  </body>
+</html>
