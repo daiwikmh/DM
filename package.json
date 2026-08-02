@@ -9,6 +9,7 @@
     "db:migrate": "pnpm --filter @prava/db migrate",
     "resolve": "pnpm --filter @prava/worker resolve",
     "eval": "pnpm --filter @prava/worker eval",
-    "prava:spike": "pnpm --filter @prava/worker prava:spike"
+    "prava:spike": "pnpm --filter @prava/worker prava:spike",
+    "add-find": "pnpm --filter @prava/worker add-find"
   }
 }

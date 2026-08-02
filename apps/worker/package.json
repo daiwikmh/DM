@@ -16,7 +16,8 @@
     "test": "node --import tsx --test 'src/**/*.test.ts'",
     "resolve": "node --env-file-if-exists=../../.env --import tsx src/cli/resolve.ts",
     "eval": "node --env-file-if-exists=../../.env --import tsx src/cli/eval.ts",
-    "prava:spike": "node --env-file-if-exists=../../.env --import tsx src/cli/prava-spike.ts"
+    "prava:spike": "node --env-file-if-exists=../../.env --import tsx src/cli/prava-spike.ts",
+    "add-find": "node --env-file-if-exists=../../.env --import tsx src/cli/add-find.ts"
   },
   "dependencies": {
     "@prava/db": "workspace:*",
