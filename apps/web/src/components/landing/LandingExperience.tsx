@@ -22,6 +22,7 @@ gsap.registerPlugin(ScrollTrigger);
  */
 export function LandingExperience() {
   const spacerRef = useRef<HTMLDivElement>(null);
+  const layersRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<GalleryHandle>(null);
   const heroRef = useRef<HeroOverlayHandle>(null);
@@ -31,7 +32,7 @@ export function LandingExperience() {
   const applySpacerHeight = useCallback(() => {
     const vh = window.innerHeight;
     if (spacerRef.current) {
-      spacerRef.current.style.height = `${vh + maxScrollRef.current + 2 * vh}px`;
+      spacerRef.current.style.height = `${vh + maxScrollRef.current + vh}px`;
     }
     ScrollTrigger.refresh();
   }, []);
@@ -80,6 +81,12 @@ export function LandingExperience() {
       const outroProgress = scrollY <= outroStart ? 0 : (scrollY - outroStart) / Math.max(1, vh - 100);
       heroRef.current?.setOutroProgress(outroProgress);
 
+      if (layersRef.current) {
+        const spent = outroProgress >= 1;
+        layersRef.current.style.opacity = spent ? '0' : '1';
+        layersRef.current.style.pointerEvents = spent ? 'none' : '';
+      }
+
       raf = requestAnimationFrame(tick);
     });
 
@@ -93,14 +100,16 @@ export function LandingExperience() {
       className={`relative bg-white select-none ${isDesktop ? 'cursor-none' : ''}`}
       style={{ height: '500vh', fontFamily: "'Inter Tight', sans-serif" }}
     >
-      {isDesktop && <CustomCursor />}
-      <VideoBackground />
+      <div ref={layersRef} className="transition-opacity duration-300">
+        {isDesktop && <CustomCursor />}
+        <VideoBackground />
 
-      <div ref={panelRef} className="fixed inset-0 z-10 bg-black">
-        <Gallery ref={galleryRef} onWrapperHeightChange={onWrapperHeightChange} />
+        <div ref={panelRef} className="fixed inset-0 z-10 bg-black">
+          <Gallery ref={galleryRef} onWrapperHeightChange={onWrapperHeightChange} />
+        </div>
+
+        <HeroOverlay ref={heroRef} />
       </div>
-
-      <HeroOverlay ref={heroRef} />
     </div>
   );
 }

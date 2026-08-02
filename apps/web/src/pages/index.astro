@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { LandingExperience } from '../components/landing/LandingExperience.tsx';
+import { HOW_IT_WORKS, REEL_VIDEO } from '../components/landing/content.ts';
 
 if (Astro.locals.userId) return Astro.redirect('/dashboard');
 ---
@@ -21,40 +22,156 @@ if (Astro.locals.userId) return Astro.redirect('/dashboard');
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
   </head>
-  <body class="m-0">
+  <body class="font-display m-0 bg-white">
     <LandingExperience client:only="react" />
 
-    {
-      /* Sign-in stub — separate from the spec'd CTA so the real "start" button
-         can point at the real destination without this getting in the way.
-         The handle is what binds a signed-in account to its Instagram shares. */
-    }
-    <form
-      method="POST"
-      action="/dev-login"
-      class="fixed bottom-4 left-4 z-[60] flex gap-2 rounded-lg bg-stone-900 p-2"
+    <section id="how-it-works" class="relative z-30 bg-white px-4 pt-16 pb-24 sm:px-8 sm:pt-24">
+      <div class="mx-auto grid w-full max-w-6xl gap-12 lg:grid-cols-[1fr_360px] lg:gap-20">
+        <div>
+          <p class="text-[11px] font-medium tracking-[-0.02em] text-stone-400 uppercase sm:text-[13px]">
+            How it works
+          </p>
+          <h2
+            class="mt-3 text-[44px] leading-[0.9] font-medium tracking-[-0.04em] text-stone-900 sm:text-[72px]"
+          >
+            Send a reel,<br />get the product
+          </h2>
+
+          <ol class="mt-12 border-t border-stone-200">
+            {
+              HOW_IT_WORKS.map((step) => (
+                <li class="flex gap-6 border-b border-stone-200 py-6 sm:gap-10 sm:py-8">
+                  <span class="shrink-0 text-[13px] font-medium tracking-[-0.02em] text-stone-400 tabular-nums">
+                    {step.n}
+                  </span>
+                  <div>
+                    <h3 class="text-[20px] leading-none font-medium tracking-[-0.04em] text-stone-900 sm:text-[30px]">
+                      {step.title}
+                    </h3>
+                    <p class="mt-3 max-w-lg text-[13px] leading-relaxed text-stone-500 sm:text-[15px]">
+                      {step.body}
+                    </p>
+                  </div>
+                </li>
+              ))
+            }
+          </ol>
+
+          <button
+            type="button"
+            data-login
+            class="mt-10 flex h-[80px] w-full items-center justify-center rounded-full bg-stone-900 transition-transform hover:scale-[1.01] sm:h-[100px] sm:w-[330px]"
+          >
+            <span class="text-[48px] leading-none font-medium tracking-[-0.04em] text-white sm:text-[64px]">
+              start
+            </span>
+          </button>
+        </div>
+
+        <div class="mx-auto w-full max-w-[320px] lg:mx-0">
+          <div class="overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm">
+            <video
+              src={REEL_VIDEO}
+              autoplay
+              loop
+              muted
+              playsinline
+              preload="metadata"
+              class="aspect-[9/16] h-full w-full object-cover"></video>
+          </div>
+          <p class="mt-4 text-center text-[11px] tracking-[-0.02em] text-stone-400 uppercase">
+            The whole thing, start to finish
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <div
+      id="login"
+      hidden
+      class="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/80 px-4 backdrop-blur"
     >
-      <input
-        type="email"
-        name="email"
-        required
-        placeholder="you@example.com"
-        class="rounded bg-white px-2 py-1 text-xs text-stone-900"
-      />
-      <input
-        type="text"
-        name="instagram"
-        required
-        placeholder="your.instagram"
-        class="rounded bg-white px-2 py-1 text-xs text-stone-900"
-      />
-      <button type="submit" class="rounded bg-white px-2 py-1 text-xs font-medium text-stone-900">
-        Sign in
-      </button>
-    </form>
+      <div class="w-full max-w-md bg-white p-8">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-[11px] font-medium tracking-[-0.02em] text-stone-400 uppercase">
+              Sign in
+            </p>
+            <h2
+              class="mt-2 text-[30px] leading-none font-medium tracking-[-0.04em] text-stone-900 sm:text-[36px]"
+            >
+              Claim your finds
+            </h2>
+          </div>
+          <button
+            type="button"
+            id="login-close"
+            aria-label="Close"
+            class="text-[15px] font-medium tracking-[-0.02em] text-stone-400 uppercase hover:text-stone-900"
+          >
+            &times;
+          </button>
+        </div>
+
+        <p class="mt-4 text-[13px] leading-relaxed text-stone-500">
+          Use the Instagram handle you sent the reel from — that is what binds your shares to this
+          account.
+        </p>
+
+        <form method="POST" action="/dev-login" class="mt-6 space-y-3">
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+            class="w-full rounded-full border border-stone-300 px-5 py-3 text-[15px] tracking-[-0.02em] text-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:outline-none"
+          />
+          <input
+            type="text"
+            name="instagram"
+            required
+            placeholder="your.instagram"
+            class="w-full rounded-full border border-stone-300 px-5 py-3 text-[15px] tracking-[-0.02em] text-stone-900 placeholder:text-stone-400 focus:border-stone-900 focus:outline-none"
+          />
+          <button
+            type="submit"
+            class="w-full rounded-full bg-stone-900 px-6 py-4 text-[15px] font-medium tracking-[-0.02em] text-white sm:text-[20px]"
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const panel = document.getElementById('login');
+
+      const open = () => {
+        if (!panel) return;
+        panel.hidden = false;
+        panel.querySelector<HTMLInputElement>('input[name="email"]')?.focus();
+      };
+
+      const close = () => {
+        if (panel) panel.hidden = true;
+      };
+
+      document.addEventListener('click', (event) => {
+        const trigger = (event.target as HTMLElement).closest('[data-login]');
+        if (trigger) {
+          event.preventDefault();
+          return open();
+        }
+        if ((event.target as HTMLElement).closest('#login-close') || event.target === panel) close();
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') close();
+      });
+    </script>
   </body>
 </html>

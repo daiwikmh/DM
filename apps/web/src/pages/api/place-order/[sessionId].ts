@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const body = (await request.json().catch(() => null)) as {
     shipping?: Record<string, string>;
+    watch?: boolean;
   } | null;
 
   if (!body?.shipping) return new Response('shipping is required', { status: 400 });
@@ -75,6 +76,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       productUrl: item.productUrl,
       card: payment.credentials,
       shipping: body.shipping,
+      headful: body.watch === true,
     }),
   }).catch(() => null);
 

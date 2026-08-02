@@ -17,7 +17,18 @@ const [row] = await db
   .where(eq(items.id, itemId!))
   .limit(1);
 
-if (!row || row.share.userId !== userId) return new Response('Not found', { status: 404 });
+// Demo items are real items real test users sent us, allowlisted by id so a
+// judge (who can't send us their own reel while Meta's app is in developer
+// mode — see WaitlistCard) can still run the actual Prava flow end to end,
+// checking out with their own signed-in session rather than the sender's.
+const demoIds = (import.meta.env.DEMO_ITEM_IDS ?? process.env.DEMO_ITEM_IDS ?? '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
+
+if (!row || (row.share.userId !== userId && !demoIds.includes(row.item.id))) {
+  return new Response('Not found', { status: 404 });
+}
 
 const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
@@ -42,8 +53,6 @@ if (!item.priceAmount || !item.currency) {
       currency: item.currency,
       merchant: {
         name: item.merchant ?? 'Unknown merchant',
-        // The catalog is US storefronts priced in USD, so the merchant country
-        // is US. createSession reduces the product URL to its bare origin.
         url: item.productUrl,
         countryCodeIso2: 'US',
       },

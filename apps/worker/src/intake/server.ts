@@ -55,7 +55,12 @@ async function runCheckout(req: IncomingMessage, res: ServerResponse): Promise<v
     );
   }
 
-  let body: { productUrl?: string; card?: CardCredentials; shipping?: ShippingDetails };
+  let body: {
+    productUrl?: string;
+    card?: CardCredentials;
+    shipping?: ShippingDetails;
+    headful?: boolean;
+  };
   try {
     body = JSON.parse((await readRawBody(req)).toString('utf8'));
   } catch {
@@ -70,12 +75,14 @@ async function runCheckout(req: IncomingMessage, res: ServerResponse): Promise<v
     );
   }
 
-  console.log(`checkout: driving ${body.productUrl}`);
+  const headless = body.headful === true ? false : process.env.CHECKOUT_HEADLESS !== 'false';
+
+  console.log(`checkout: driving ${body.productUrl}${headless ? '' : ' (headful — window will open)'}`);
   const result = await executeCheckout({
     productUrl: body.productUrl,
     card: body.card,
     shipping: body.shipping,
-    headless: process.env.CHECKOUT_HEADLESS !== 'false',
+    headless,
   });
 
   res.writeHead(200, { 'content-type': 'application/json' });

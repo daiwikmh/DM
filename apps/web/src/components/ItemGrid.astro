@@ -1,7 +1,8 @@
 ---
-import { db, shares, items } from '@prava/db';
+import { db, shares, items, identities } from '@prava/db';
 import { and, eq, desc, inArray, asc, ne } from 'drizzle-orm';
 import ShareCard from './ShareCard.astro';
+import WaitlistCard from './WaitlistCard.astro';
 
 interface Props {
   userId: string;
@@ -9,9 +10,6 @@ interface Props {
 
 const { userId } = Astro.props;
 
-// A share that could not be read has nothing to show and no action to take, so
-// it is left out of the grid rather than rendered as a dead card with the
-// resolver's raw error on it.
 const userShares = await db
   .select()
   .from(shares)
@@ -33,16 +31,46 @@ const shareItems = userShares.length
   : [];
 
 const byShare = Map.groupBy(shareItems, (item) => item.shareId);
+
+// A signed-in account with no shares and no linked Instagram identity means
+// dev-login couldn't resolve an IGSID for this handle — the common case while
+// Meta's app is still in developer mode and this account isn't whitelisted.
+let hasIdentity = true;
+let demoItems: (typeof items.$inferSelect)[] = [];
+
+if (userShares.length === 0) {
+  const [identity] = await db
+    .select()
+    .from(identities)
+    .where(eq(identities.userId, userId))
+    .limit(1);
+  hasIdentity = Boolean(identity);
+
+  if (!hasIdentity) {
+    const demoIds = (import.meta.env.DEMO_ITEM_IDS ?? process.env.DEMO_ITEM_IDS ?? '')
+      .split(',')
+      .map((id: string) => id.trim())
+      .filter(Boolean);
+
+    if (demoIds.length) {
+      demoItems = await db.select().from(items).where(inArray(items.id, demoIds));
+    }
+  }
+}
 ---
 
 {
   userShares.length === 0 ? (
-    <div class="border border-dashed border-white/15 px-6 py-16 text-center">
-      <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">Nothing here yet</p>
-      <p class="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-white/40 sm:text-[15px]">
-        Send a reel to your Instagram or WhatsApp and it will show up here.
-      </p>
-    </div>
+    hasIdentity ? (
+      <div class="border border-dashed border-white/15 px-6 py-16 text-center">
+        <p class="text-[20px] font-medium tracking-[-0.04em] sm:text-[30px]">Nothing here yet</p>
+        <p class="mx-auto mt-3 max-w-sm text-[13px] leading-relaxed text-white/40 sm:text-[15px]">
+          Send a reel to your Instagram or WhatsApp and it will show up here.
+        </p>
+      </div>
+    ) : (
+      <WaitlistCard demoItems={demoItems} />
+    )
   ) : (
     <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {userShares.map((share) => (

@@ -31,6 +31,26 @@ export const FOOTER_RIGHT = 'PRIVACY POLICY';
 // black-on-white instead of the intended white-on-video look.
 export const VIDEO_LEFT = '/video/runway.mp4';
 
+export const REEL_VIDEO = '/video/praareel.mp4';
+
+export const HOW_IT_WORKS = [
+  {
+    n: '01',
+    title: 'Send the reel',
+    body: 'DM us anything you like the look of. No app, no screenshots — the Instagram share you already know how to do.',
+  },
+  {
+    n: '02',
+    title: 'We find the product',
+    body: 'We read the frame, identify the piece, and come back with where to buy it and what it costs.',
+  },
+  {
+    n: '03',
+    title: 'Buy it in one click',
+    body: 'One tap mints a one-time card locked to that merchant and that price, then an agent completes the checkout for you.',
+  },
+] as const;
+
 export const GALLERY_IMAGES = [
   '/images/model1.jpeg',
   '/images/model2.jpeg',

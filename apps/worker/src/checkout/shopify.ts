@@ -57,7 +57,10 @@ export async function executeCheckout(params: {
     console.log(`checkout: [${String(Math.round((Date.now() - started) / 1000)).padStart(3)}s] ${name}${detail ? ' — ' + detail : ''}`);
 
   const browser = await chromium.launch({ headless });
-  const context = await browser.newContext({ locale: 'en-IN' });
+  const context = await browser.newContext({
+    locale: 'en-US',
+    timezoneId: 'America/Los_Angeles',
+  });
   const page = await context.newPage();
 
   const fail = async (message: string): Promise<CheckoutResult> => ({
@@ -68,8 +71,19 @@ export async function executeCheckout(params: {
   });
 
   try {
-    step('opening product', productUrl);
-    await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const usUrl = (() => {
+      try {
+        const u = new URL(productUrl);
+        u.searchParams.set('country', 'US');
+        u.searchParams.set('currency', 'USD');
+        return u.toString();
+      } catch {
+        return productUrl;
+      }
+    })();
+
+    step('opening product', usUrl);
+    await page.goto(usUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
 
     const origin = new URL(page.url()).origin;
     if (!(await isShopify(page))) {

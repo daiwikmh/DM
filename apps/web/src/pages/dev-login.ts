@@ -29,31 +29,29 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return new Response(err instanceof Error ? err.message : String(err), { status: 502 });
   }
 
-  if (!igsid) {
-    return new Response(
-      `No Instagram account matching "${handle}" has messaged us yet. Send a photo first, then sign in.`,
-      { status: 404 },
-    );
-  }
-
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
   const user = existing[0] ?? (await db.insert(users).values({ email }).returning())[0];
 
-  const [identity] = await db
-    .select()
-    .from(identities)
-    .where(and(eq(identities.platform, 'instagram'), eq(identities.externalId, igsid)))
-    .limit(1);
+  // No matching IGSID — most likely this handle hasn't messaged us yet, or (while
+  // Meta's app review is pending) isn't whitelisted to. Sign in anyway: the
+  // dashboard renders a waitlist card instead of hard-blocking entry here.
+  if (igsid) {
+    const [identity] = await db
+      .select()
+      .from(identities)
+      .where(and(eq(identities.platform, 'instagram'), eq(identities.externalId, igsid)))
+      .limit(1);
 
-  if (!identity) {
-    await db
-      .insert(identities)
-      .values({ userId: user.id, platform: 'instagram', externalId: igsid })
-      .onConflictDoNothing();
-  } else if (identity.userId !== user.id) {
-    // The placeholder account holds every share this IGSID has sent.
-    await db.update(shares).set({ userId: user.id }).where(eq(shares.userId, identity.userId));
-    await db.update(identities).set({ userId: user.id }).where(eq(identities.id, identity.id));
+    if (!identity) {
+      await db
+        .insert(identities)
+        .values({ userId: user.id, platform: 'instagram', externalId: igsid })
+        .onConflictDoNothing();
+    } else if (identity.userId !== user.id) {
+      // The placeholder account holds every share this IGSID has sent.
+      await db.update(shares).set({ userId: user.id }).where(eq(shares.userId, identity.userId));
+      await db.update(identities).set({ userId: user.id }).where(eq(identities.id, identity.id));
+    }
   }
 
   setSession(cookies, user.id);

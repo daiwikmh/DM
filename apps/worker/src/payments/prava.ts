@@ -179,11 +179,6 @@ export async function purgeEnrolledCards(customerId: string): Promise<number> {
   }
 }
 
-/**
- * TLDs the card network refuses outright. A session built with one of these
- * gets all the way through card entry and passkey approval, then dies at the
- * last step with a generic error, so they are rejected here instead.
- */
 const RESERVED_TLDS = new Set([
   'local',
   'test',
@@ -206,15 +201,6 @@ function assertRoutableTld(hostname: string, what: string): void {
   }
 }
 
-/**
- * Reduce a merchant link to the bare https origin the card network expects.
- *
- * `merchant_details.url` is forwarded as the merchant identifier, not as a
- * link to follow: a path, a query string, or a wrong scheme fails 100% of that
- * merchant's checkouts at authentication with a generic 400. Our items carry
- * full product URLs with tracking params, so every one of them has to be
- * reduced here.
- */
 export function merchantOrigin(raw: string): string {
   let url: URL;
   try {
@@ -236,8 +222,6 @@ export function merchantOrigin(raw: string): string {
 export async function createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
   const emailHost = input.userEmail.split('@')[1];
   if (!emailHost) throw new Error(`user email is not an address: ${input.userEmail}`);
-  // Forwarded to the card network during passkey registration; a reserved TLD
-  // here surfaces much later as PASSKEY_REG_FAILED.
   assertRoutableTld(emailHost, 'user email');
 
   const body = await pravaFetch<{
@@ -357,9 +341,6 @@ export async function waitForCredentials(
 }
 
 export async function revokeSession(sessionId: string): Promise<void> {
-  // pravaFetch always sets content-type: application/json, and Prava rejects
-  // that header with an empty body — "Body cannot be empty when content-type
-  // is set to 'application/json'". This endpoint takes no fields, so send {}.
   await pravaFetch(`/v1/sessions/${encodeURIComponent(sessionId)}/revoke`, {
     method: 'POST',
     body: '{}',

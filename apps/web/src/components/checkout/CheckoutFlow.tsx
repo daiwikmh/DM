@@ -85,11 +85,6 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
   const [passkeyReady, setPasskeyReady] = useState<boolean | null>(null);
   const startedRef = useRef(false);
 
-  /**
-   * Passkey payments need a real browser with a platform authenticator. An
-   * embedded webview or a desktop profile without one dies inside Prava's page
-   * before the cardholder does anything, so the dead end is caught out here.
-   */
   useEffect(() => {
     const embedded = /Electron\/|Code\/|; wv\)/.test(navigator.userAgent);
     if (embedded) return setPasskeyReady(false);
@@ -118,7 +113,11 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
         const res = await fetch(`/api/place-order/${sessionId}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ itemId, shipping: { ...address, email } }),
+          body: JSON.stringify({
+            itemId,
+            shipping: { ...address, email },
+            watch: new URLSearchParams(window.location.search).get('watch') === '1',
+          }),
         });
         result = await res.json();
       } catch (err) {
@@ -264,19 +263,16 @@ export function CheckoutFlow(props: CheckoutFlowProps) {
                   transition={{ duration: 0.35, ease: EASE }}
                 >
                   <Guardrails merchant={merchantName} priceLabel={priceLabel} />
-                  {passkeyReady === false ? (
-                    <div className="mt-8 border border-amber-300/40 p-5">
-                      <p className="text-[20px] leading-none font-medium tracking-[-0.04em] text-amber-300">
-                        This device can't approve the payment
-                      </p>
-                      <p className="mt-3 text-[13px] leading-relaxed text-white/50">
-                        Prava needs a passkey — Face ID, Touch ID or Windows Hello. Open this page in
-                        Safari or Chrome on a device that has one, rather than in an in-app browser.
+                  {passkeyReady === false && (
+                    <div className="mt-8 border border-amber-300/40 p-4">
+                      <p className="text-[13px] leading-relaxed text-amber-300/90">
+                        This browser reports no passkey — Prava needs Face ID, Touch ID or Windows
+                        Hello. You can still try, but if it dies at authorization, open the page in
+                        Safari or Chrome on a device that has one.
                       </p>
                     </div>
-                  ) : (
-                    <BuyButton onClick={start} />
                   )}
+                  <BuyButton onClick={start} />
                 </motion.div>
               ) : (
                 <motion.div

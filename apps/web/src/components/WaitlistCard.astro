@@ -1,0 +1,92 @@
+---
+import type { InferSelectModel } from 'drizzle-orm';
+import type { items } from '@prava/db/schema';
+
+type Item = InferSelectModel<typeof items>;
+
+interface Props {
+  demoItems: Item[];
+}
+
+const { demoItems } = Astro.props;
+
+const price = (item: Item) =>
+  item.priceAmount && item.currency
+    ? new Intl.NumberFormat('en', { style: 'currency', currency: item.currency }).format(
+        Number(item.priceAmount),
+      )
+    : null;
+---
+
+<article class="border border-white/10 bg-white/[0.03]">
+  <div class="grid gap-px bg-white/10 lg:grid-cols-2">
+    <div class="p-8 sm:p-10">
+      <p class="text-[11px] font-medium tracking-[-0.02em] text-amber-400 uppercase">
+        Not whitelisted yet
+      </p>
+      <h3 class="mt-3 text-[26px] leading-[1.05] font-medium tracking-[-0.04em] sm:text-[32px]">
+        We can't receive your reel yet
+      </h3>
+      <p class="mt-4 text-[15px] leading-relaxed text-white/60">
+        Meta only lets this app receive DMs from Instagram accounts we've explicitly whitelisted
+        while it's in developer mode.
+      </p>
+      <p class="mt-4 text-[15px] leading-relaxed text-white/60">
+        Email your Instagram handle to
+        <a href="mailto:daiwikdomain@gmail.com" class="text-white underline underline-offset-4">
+          daiwikdomain@gmail.com
+        </a>
+        and we'll whitelist you.
+      </p>
+    </div>
+
+    <video
+      src="/video/runway.mp4"
+      autoplay
+      loop
+      muted
+      playsinline
+      preload="metadata"
+      class="aspect-square w-full bg-white/5 object-cover lg:aspect-auto lg:h-full"
+    />
+  </div>
+
+  {
+    demoItems.length > 0 && (
+      <div class="border-t border-white/10 p-8 sm:p-10">
+        <p class="text-[11px] font-medium tracking-[-0.02em] text-white/40 uppercase">Try it now</p>
+        <h4 class="mt-2 text-[20px] leading-[1.05] font-medium tracking-[-0.04em] sm:text-[24px]">
+          Test the real Prava payment flow on items our test users already sent
+        </h4>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {demoItems.map((item) => (
+            <a
+              href={`/checkout/${item.id}`}
+              class="block border border-white/10 bg-black/40 p-4 transition hover:border-white/30"
+            >
+              {item.imageUrl && (
+                <img
+                  src={item.imageUrl}
+                  alt={item.title}
+                  loading="lazy"
+                  class="aspect-square w-full bg-white/5 object-cover"
+                />
+              )}
+              <p class="mt-3 text-[15px] leading-tight font-medium tracking-[-0.02em]">
+                {item.title}
+              </p>
+              <p class="mt-1 text-[11px] tracking-[-0.02em] text-white/40 uppercase">
+                {item.merchant}
+              </p>
+              {price(item) && (
+                <p class="mt-2 text-[20px] leading-none font-medium tracking-[-0.04em]">
+                  {price(item)}
+                </p>
+              )}
+            </a>
+          ))}
+        </div>
+      </div>
+    )
+  }
+</article>

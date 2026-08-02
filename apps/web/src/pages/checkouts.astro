@@ -6,9 +6,6 @@ import { and, desc, eq, gt } from 'drizzle-orm';
 const { userId } = Astro.locals;
 if (!userId) return Astro.redirect('/');
 
-// This page is the live view of what is happening right now, not a ledger. A
-// Prava session dies 15 minutes after it opens, so that window is the cutoff:
-// everything older has already played out and is dropped, whatever it ended as.
 const liveSince = new Date(Date.now() - 15 * 60_000);
 
 const rows = await db
@@ -35,7 +32,6 @@ const TONE: Record<string, string> = {
   failed: 'border-red-400/50 text-red-300',
 };
 
-/** How many of the five beats a status has actually completed. */
 const REACHED: Record<string, number> = {
   authorizing: 1,
   authorized: 3,
@@ -46,14 +42,14 @@ const REACHED: Record<string, number> = {
 
 type StepState = 'done' | 'warn' | 'blocked' | 'active' | 'pending';
 
-/**
- * The same five beats the checkout screen animates through, replayed from
- * whatever the row settled on — so a checkout reads the same in both places.
- */
 const flowFor = (status: string): { label: string; state: StepState }[] => {
   const labels = ['Session', 'Passkey', 'Card minted', 'Bought', 'Reported'];
   if (status === 'declined') labels[3] = 'Declined';
   if (status === 'failed') labels[3] = 'Agent stalled';
+
+  if (status === 'placed') labels[4] = 'Reported APPROVED';
+  if (status === 'declined') labels[4] = 'Reported DECLINED';
+  if (status === 'failed') labels[4] = 'Not reported yet';
 
   const done = REACHED[status] ?? 0;
 

@@ -95,10 +95,13 @@ export const HeroOverlay = forwardRef<HeroOverlayHandle>((_props, ref) => {
         transition={{ duration: 0.6, ease: EASE, delay: 0.15 }}
         className="pointer-events-none fixed top-4 right-4 z-20 flex h-[30px] w-auto items-center justify-between sm:top-8 sm:right-8 sm:w-[330px]"
       >
-        <span className="hidden text-[15px] font-medium tracking-tight text-stone-900 uppercase sm:inline">
+        <a
+          href="#how-it-works"
+          className="pointer-events-auto hidden text-[15px] font-medium tracking-tight text-stone-900 uppercase sm:inline"
+        >
           {NAV_LABEL}
-        </span>
-        <a href={CTA_HREF} className="pointer-events-auto flex items-center gap-5 sm:gap-[50px]">
+        </a>
+        <a href={CTA_HREF} data-login className="pointer-events-auto flex items-center gap-5 sm:gap-[50px]">
           <svg width="24" height="24" viewBox="0 0 40 40" className="sm:h-[30px] sm:w-[30px]">
             <path d="M0 14H40" stroke="#1c1917" strokeWidth="2.5" />
             <path d="M0 26H40" stroke="#1c1917" strokeWidth="2.5" />
@@ -152,6 +155,7 @@ export const HeroOverlay = forwardRef<HeroOverlayHandle>((_props, ref) => {
       <a
         ref={buttonRef}
         href={CTA_HREF}
+        data-login
         className="pointer-events-auto fixed right-4 bottom-[60px] left-4 z-20 flex h-[100px] scale-0 items-center justify-center rounded-[1335px] bg-white sm:right-8 sm:bottom-8 sm:left-auto sm:h-[174px] sm:w-[330px]"
         style={{ transformOrigin: 'right bottom' }}
       >
